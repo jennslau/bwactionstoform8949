@@ -912,120 +912,122 @@ def create_form_8949_with_official_template(buffer, page_transactions, form_type
     official_form_pdf = get_official_form_8949(tax_year)
     
     if official_form_pdf:
-        try:
-            # Use official form as base and overlay data
-            return create_form_with_pdf_overlay(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions, official_form_pdf)
-        except Exception as e:
-            # Fallback to custom creation if overlay fails
-            pass
+        # Try to use official form as base and overlay data
+        success = create_form_with_pdf_overlay(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions, official_form_pdf)
+        if success:
+            return True
     
-    # Fallback: create custom form (original method)
+    # Fallback: create custom form if overlay fails or no official form available
     return create_form_8949_page_custom(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions)
 
 def create_form_with_pdf_overlay(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions, official_form_pdf):
     """Overlay transaction data onto official IRS Form 8949 PDF"""
-    
-    # Read the official PDF
-    official_pdf_stream = io.BytesIO(official_form_pdf)
-    pdf_reader = PyPDF2.PdfReader(official_pdf_stream)
-    
-    # Determine which page to use (Part I or Part II)
-    template_page_num = 0 if "Part I" in form_type else 1
-    if template_page_num >= len(pdf_reader.pages):
-        template_page_num = 0  # Fallback to first page
-    
-    template_page = pdf_reader.pages[template_page_num]
-    
-    # Create overlay with transaction data
-    overlay_buffer = io.BytesIO()
-    c = canvas.Canvas(overlay_buffer, pagesize=letter)
-    width, height = letter
-    
-    # Set font
-    c.setFont("Helvetica", 9)
-    
-    # Add taxpayer information (positioned to match form fields)
-    c.drawString(60, height - 85, taxpayer_name)  # Name field
-    c.drawString(400, height - 85, taxpayer_ssn)  # SSN field
-    
-    # Add tax year
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(530, height - 50, str(tax_year))
-    
-    # Check appropriate box based on form_type
-    checkbox_y = height - 220  # Approximate position of checkboxes
-    c.setFont("Helvetica", 12)
-    
-    if "Box A" in form_type:
-        c.drawString(55, checkbox_y, "✓")
-    elif "Box B" in form_type:
-        c.drawString(55, checkbox_y - 15, "✓") 
-    elif "Box C" in form_type:
-        c.drawString(55, checkbox_y - 30, "✓")
-    elif "Box D" in form_type:
-        c.drawString(55, checkbox_y, "✓")
-    elif "Box E" in form_type:
-        c.drawString(55, checkbox_y - 15, "✓")
-    elif "Box F" in form_type:
-        c.drawString(55, checkbox_y - 30, "✓")
-    
-    # Add transaction data (positioned to match form fields)
-    c.setFont("Helvetica", 8)
-    start_y = height - 280  # Starting position for transaction rows
-    row_height = 20  # Height between rows
-    
-    for i, transaction in enumerate(page_transactions[:14]):  # Max 14 transactions per page
-        y_pos = start_y - (i * row_height)
+    try:
+        # Read the official PDF
+        official_pdf_stream = io.BytesIO(official_form_pdf)
+        pdf_reader = PyPDF2.PdfReader(official_pdf_stream)
         
-        # Format dates
-        date_acquired = transaction['date_acquired'].strftime('%m/%d/%Y') if transaction['date_acquired'] else 'VARIOUS'
-        date_sold = transaction['date_sold'].strftime('%m/%d/%Y')
+        # Determine which page to use (Part I or Part II)
+        template_page_num = 0 if "Part I" in form_type else 1
+        if template_page_num >= len(pdf_reader.pages):
+            template_page_num = 0  # Fallback to first page
         
-        # Position data in columns (adjusted to match official form layout)
-        c.drawString(60, y_pos, transaction['description'][:30])  # Column (a) - Description
-        c.drawString(175, y_pos, date_acquired)  # Column (b) - Date acquired  
-        c.drawString(240, y_pos, date_sold)  # Column (c) - Date sold
-        c.drawRightString(320, y_pos, f"{transaction['proceeds']:,.2f}")  # Column (d) - Proceeds
-        c.drawRightString(380, y_pos, f"{transaction['cost_basis']:,.2f}")  # Column (e) - Cost basis
-        # Column (f) - Code (leave blank)
-        # Column (g) - Adjustment (leave blank) 
-        c.drawRightString(520, y_pos, f"{transaction['gain_loss']:,.2f}")  # Column (h) - Gain/Loss
-    
-    # Add totals (only on last page)
-    if page_number == total_pages and len(page_transactions) > 0:
-        totals_y = start_y - (14 * row_height) - 10  # Position below transaction rows
+        template_page = pdf_reader.pages[template_page_num]
         
-        total_proceeds = sum(t['proceeds'] for t in all_transactions)
-        total_basis = sum(t['cost_basis'] for t in all_transactions)
-        total_gain_loss = sum(t['gain_loss'] for t in all_transactions)
+        # Create overlay with transaction data
+        overlay_buffer = io.BytesIO()
+        c = canvas.Canvas(overlay_buffer, pagesize=letter)
+        width, height = letter
         
-        c.setFont("Helvetica-Bold", 8)
-        c.drawRightString(320, totals_y, f"{total_proceeds:,.2f}")
-        c.drawRightString(380, totals_y, f"{total_basis:,.2f}")
-        c.drawRightString(520, totals_y, f"{total_gain_loss:,.2f}")
-    
-    # Add page footer
-    c.setFont("Helvetica", 7)
-    if total_pages > 1:
-        c.drawString(50, 30, f"Page {page_number} of {total_pages}")
-    c.drawRightString(width - 50, 30, f"Generated: {datetime.now().strftime('%m/%d/%Y')}")
-    
-    c.save()
-    
-    # Merge overlay with template
-    overlay_buffer.seek(0)
-    overlay_reader = PyPDF2.PdfReader(overlay_buffer)
-    overlay_page = overlay_reader.pages[0]
-    
-    # Merge the pages
-    template_page.merge_page(overlay_page)
-    
-    # Write to output buffer
-    pdf_writer = PyPDF2.PdfWriter()
-    pdf_writer.add_page(template_page)
-    pdf_writer.write(buffer)
-    
-    return True
+        # Set font
+        c.setFont("Helvetica", 9)
+        
+        # Add taxpayer information (positioned to match form fields)
+        c.drawString(60, height - 85, taxpayer_name)  # Name field
+        c.drawString(400, height - 85, taxpayer_ssn)  # SSN field
+        
+        # Add tax year
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(530, height - 50, str(tax_year))
+        
+        # Check appropriate box based on form_type
+        checkbox_y = height - 220  # Approximate position of checkboxes
+        c.setFont("Helvetica", 12)
+        
+        if "Box A" in form_type:
+            c.drawString(55, checkbox_y, "✓")
+        elif "Box B" in form_type:
+            c.drawString(55, checkbox_y - 15, "✓") 
+        elif "Box C" in form_type:
+            c.drawString(55, checkbox_y - 30, "✓")
+        elif "Box D" in form_type:
+            c.drawString(55, checkbox_y, "✓")
+        elif "Box E" in form_type:
+            c.drawString(55, checkbox_y - 15, "✓")
+        elif "Box F" in form_type:
+            c.drawString(55, checkbox_y - 30, "✓")
+        
+        # Add transaction data (positioned to match form fields)
+        c.setFont("Helvetica", 8)
+        start_y = height - 280  # Starting position for transaction rows
+        row_height = 20  # Height between rows
+        
+        for i, transaction in enumerate(page_transactions[:14]):  # Max 14 transactions per page
+            y_pos = start_y - (i * row_height)
+            
+            # Format dates
+            date_acquired = transaction['date_acquired'].strftime('%m/%d/%Y') if transaction['date_acquired'] else 'VARIOUS'
+            date_sold = transaction['date_sold'].strftime('%m/%d/%Y')
+            
+            # Position data in columns (adjusted to match official form layout)
+            c.drawString(60, y_pos, transaction['description'][:30])  # Column (a) - Description
+            c.drawString(175, y_pos, date_acquired)  # Column (b) - Date acquired  
+            c.drawString(240, y_pos, date_sold)  # Column (c) - Date sold
+            c.drawRightString(320, y_pos, f"{transaction['proceeds']:,.2f}")  # Column (d) - Proceeds
+            c.drawRightString(380, y_pos, f"{transaction['cost_basis']:,.2f}")  # Column (e) - Cost basis
+            # Column (f) - Code (leave blank)
+            # Column (g) - Adjustment (leave blank) 
+            c.drawRightString(520, y_pos, f"{transaction['gain_loss']:,.2f}")  # Column (h) - Gain/Loss
+        
+        # Add totals (only on last page)
+        if page_number == total_pages and len(page_transactions) > 0:
+            totals_y = start_y - (14 * row_height) - 10  # Position below transaction rows
+            
+            total_proceeds = sum(t['proceeds'] for t in all_transactions)
+            total_basis = sum(t['cost_basis'] for t in all_transactions)
+            total_gain_loss = sum(t['gain_loss'] for t in all_transactions)
+            
+            c.setFont("Helvetica-Bold", 8)
+            c.drawRightString(320, totals_y, f"{total_proceeds:,.2f}")
+            c.drawRightString(380, totals_y, f"{total_basis:,.2f}")
+            c.drawRightString(520, totals_y, f"{total_gain_loss:,.2f}")
+        
+        # Add page footer
+        c.setFont("Helvetica", 7)
+        if total_pages > 1:
+            c.drawString(50, 30, f"Page {page_number} of {total_pages}")
+        c.drawRightString(width - 50, 30, f"Generated: {datetime.now().strftime('%m/%d/%Y')}")
+        
+        c.save()
+        
+        # Merge overlay with template
+        overlay_buffer.seek(0)
+        overlay_reader = PyPDF2.PdfReader(overlay_buffer)
+        overlay_page = overlay_reader.pages[0]
+        
+        # Merge the pages
+        template_page.merge_page(overlay_page)
+        
+        # Write to output buffer
+        pdf_writer = PyPDF2.PdfWriter()
+        pdf_writer.add_page(template_page)
+        pdf_writer.write(buffer)
+        
+        return True
+        
+    except Exception as e:
+        # If PDF overlay fails, fall back to custom form creation
+        return False
 
 def create_form_8949_page_custom(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions):
     """Create a single Form 8949 PDF page"""
