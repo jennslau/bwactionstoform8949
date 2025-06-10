@@ -1,29 +1,4 @@
-# Information section
-    col_info1, col_info2, col_info3 = st.columns([1, 2, 1])
-    with col_info2:
-        with st.expander("ℹ️ How This Works", expanded=False):
-            st.markdown("""
-            **This tool is specifically designed for Bitwave actions reports:**
-            
-            1. **Upload** your Bitwave actions CSV export
-            2. **Automatically extracts** sell transactions with proper lot matching
-            3. **Maps acquisition dates** using lot IDs from buy transactions
-            4. **Validates calculations** against Bitwave's short/long-term gain/loss columns
-            5. **Choose output:**
-               - **CSV file** → Upload to TurboTax, TaxAct, FreeTaxUSA, etc.
-               - **PDF file** → Official IRS Form 8949 ready for direct filing
-            
-            **Required Bitwave columns:**
-            - `action` (buy/sell)
-            - `asset` (BTC, ETH, etc.)
-            - `timestamp` (transaction date)
-            - `lotId` (for matching buy/sell pairs)
-            - `proceeds` (column R)
-            - `costBasisRelieved` (column W)
-            - `shortTermGainLoss` and `longTermGainLoss` (for validation)
-            """)
-    
-    # Sidebar for configurationimport streamlit as st
+import streamlit as st
 import pandas as pd
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
@@ -48,183 +23,155 @@ def main():
     # Custom CSS for Bitwave styling and centering
     st.markdown("""
     <style>
-    /* Bitwave color scheme */
+    /* Bitwave design system colors */
     :root {
         --bitwave-blue: #1B9CFC;
         --bitwave-green: #00D2B8;
-        --bitwave-dark: #2C3E50;
+        --bitwave-dark: #1a1a1a;
+        --bitwave-gray: #6b7280;
+        --bitwave-light-gray: #f8fafc;
+        --bitwave-border: #e5e7eb;
     }
     
-    /* Header styling */
+    /* Global font improvements */
+    .stApp {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    /* Header styling - more subtle like Bitwave */
     .main-header {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 1rem 0;
-        background: linear-gradient(135deg, var(--bitwave-blue) 0%, var(--bitwave-green) 100%);
+        background: linear-gradient(135deg, #1a1a1a 0%, #2d3748 100%);
         color: white;
-        border-radius: 10px;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+        padding: 2.5rem 2rem;
+        margin-bottom: 3rem;
+        text-align: center;
     }
     
     .main-header h1 {
         color: white !important;
-        font-size: 2.5rem;
-        font-weight: bold;
+        font-size: 2.25rem;
+        font-weight: 600;
         margin: 0;
-        text-align: center;
+        letter-spacing: -0.025em;
     }
     
     .bitwave-logo {
-        font-size: 3rem;
-        font-weight: bold;
+        font-size: 2.5rem;
+        font-weight: 700;
         margin-right: 1rem;
         background: linear-gradient(45deg, var(--bitwave-blue), var(--bitwave-green));
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
+        letter-spacing: -0.02em;
     }
     
-    /* Center all step containers with max width */
+    /* Center all step containers with Bitwave spacing */
     .step-container {
         display: flex;
         justify-content: center;
-        margin: 3rem 0;
-        padding: 0 2rem;
+        margin: 4rem 0;
+        padding: 0 1rem;
     }
     
     .step-content {
-        max-width: 700px;
+        max-width: 600px;
         width: 100%;
-        text-align: center;
+        background: white;
+        border-radius: 16px;
+        border: 1px solid var(--bitwave-border);
+        padding: 2.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
     
-    /* Center step headers */
+    /* Step headers - Bitwave style */
     .step-header {
-        text-align: center !important;
-        color: var(--bitwave-dark);
-        font-size: 1.8rem;
-        font-weight: bold;
-        margin-bottom: 1rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 3px solid var(--bitwave-green);
-        display: block !important;
-        width: 100% !important;
-    }
-    
-    /* Center all content within step containers */
-    .step-content {
-        max-width: 800px;
-        width: 100%;
+        color: var(--bitwave-dark) !important;
+        font-size: 1.75rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
         text-align: center;
+        letter-spacing: -0.025em;
+        border-bottom: 2px solid var(--bitwave-green);
+        padding-bottom: 0.75rem;
+        display: block;
+        width: 100%;
     }
     
-    .step-content .stSelectbox,
-    .step-content .stFileUploader,
-    .step-content .stRadio {
-        display: flex;
-        justify-content: center;
-        flex-direction: column;
-        align-items: center;
-    }
-    
-    /* Style buttons with Bitwave colors */
+    /* Bitwave-style buttons */
     .stButton > button {
         background: linear-gradient(135deg, var(--bitwave-blue) 0%, var(--bitwave-green) 100%);
         color: white;
         border: none;
         border-radius: 8px;
-        font-weight: bold;
-        transition: all 0.3s ease;
+        font-weight: 600;
+        padding: 0.75rem 2rem;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+        letter-spacing: -0.025em;
     }
     
     .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(27, 156, 252, 0.25);
     }
     
-    /* Style info boxes */
+    /* Info and success boxes - Bitwave style */
     .stInfo {
-        background: linear-gradient(135deg, rgba(27, 156, 252, 0.1) 0%, rgba(0, 210, 184, 0.1) 100%);
-        border-left: 4px solid var(--bitwave-green);
-    }
-    
-    /* Style success boxes */
-    .stSuccess {
-        background: rgba(0, 210, 184, 0.1);
-        border-left: 4px solid var(--bitwave-green);
-    }
-    
-    /* Center selectbox */
-    .stSelectbox {
-        display: flex;
-        justify-content: center;
-    }
-    
-    /* Center file uploader */
-    .stFileUploader {
-        display: flex;
-        justify-content: center;
-    }
-    
-    /* Fix file uploader text formatting */
-    .stFileUploader > div {
-        width: 100% !important;
-        text-align: center !important;
-    }
-    
-    .stFileUploader label {
-        font-size: 1rem !important;
-        line-height: 1.4 !important;
-        white-space: normal !important;
-        word-wrap: break-word !important;
-        display: block !important;
-        text-align: center !important;
-    }
-    
-    .stFileUploader [data-testid="stFileUploadDropzone"] {
-        text-align: center !important;
-    }
-    
-    .stFileUploader [data-testid="stFileUploadDropzone"] > div {
-        writing-mode: horizontal-tb !important;
-        text-orientation: mixed !important;
-        direction: ltr !important;
-    }
-    
-    /* Center metrics */
-    [data-testid="metric-container"] {
-        background: rgba(27, 156, 252, 0.05);
-        border: 1px solid rgba(27, 156, 252, 0.2);
+        background: var(--bitwave-light-gray);
+        border: 1px solid var(--bitwave-border);
+        border-left: 4px solid var(--bitwave-blue);
         border-radius: 8px;
         padding: 1rem;
     }
     
-    /* Center radio buttons */
-    .stRadio {
-        display: flex;
-        justify-content: center;
+    .stSuccess {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-left: 4px solid var(--bitwave-green);
+        border-radius: 8px;
+        padding: 1rem;
     }
     
-    .stRadio > div {
+    /* Form elements styling */
+    .stSelectbox, .stFileUploader, .stRadio {
+        margin: 1rem 0;
+    }
+    
+    .stSelectbox label, .stFileUploader label, .stRadio label {
+        color: var(--bitwave-dark) !important;
+        font-weight: 500;
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Metrics styling */
+    [data-testid="metric-container"] {
+        background: var(--bitwave-light-gray);
+        border: 1px solid var(--bitwave-border);
+        border-radius: 12px;
+        padding: 1.5rem;
         text-align: center;
     }
     
-    /* Fix sidebar styling */
-    .css-1d391kg {
-        padding-top: 1rem;
+    [data-testid="metric-container"] [data-testid="metric-value"] {
+        color: var(--bitwave-dark);
+        font-weight: 600;
     }
     
-    /* Sidebar text formatting */
+    /* Sidebar styling - cleaner */
+    .stSidebar {
+        background: var(--bitwave-light-gray);
+        border-right: 1px solid var(--bitwave-border);
+    }
+    
     .stSidebar .stSelectbox label {
         font-size: 0.9rem !important;
-        line-height: 1.2 !important;
-        white-space: normal !important;
-        word-wrap: break-word !important;
+        color: var(--bitwave-dark) !important;
+        font-weight: 500;
     }
     
-    /* Sidebar columns for inline help */
     .stSidebar .stColumns {
         gap: 0 !important;
     }
@@ -233,46 +180,66 @@ def main():
         padding: 0 !important;
     }
     
-    /* Help icon styling */
     .stSidebar span[title] {
         cursor: help;
-        color: #666;
-        font-size: 0.9rem;
+        color: var(--bitwave-gray);
+        font-size: 0.875rem;
         float: right;
-        margin-top: 2px;
+        margin-top: 1px;
     }
     
     .stSidebar span[title]:hover {
         color: var(--bitwave-blue);
     }
     
-    /* Sidebar markdown formatting */
-    .stSidebar .stMarkdown {
-        margin-bottom: 0.5rem !important;
-    }
-    
     .stSidebar .stMarkdown h2 {
-        font-size: 1.3rem !important;
-        margin-bottom: 1rem !important;
+        font-size: 1.25rem !important;
+        font-weight: 600 !important;
         color: var(--bitwave-dark) !important;
+        margin-bottom: 1.5rem !important;
     }
     
     .stSidebar .stMarkdown strong {
         color: var(--bitwave-dark) !important;
-        font-size: 0.95rem !important;
+        font-size: 0.9rem !important;
+        font-weight: 500 !important;
     }
     
-    /* Fix sidebar header */
-    .stSidebar h2 {
-        font-size: 1.2rem !important;
-        margin-bottom: 1rem !important;
+    /* Content descriptions */
+    .content-description {
+        color: var(--bitwave-gray);
+        font-size: 1.125rem;
+        line-height: 1.6;
+        text-align: center;
+        margin: 2rem 0;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
     }
     
-    /* Fix sidebar subheader */
-    .stSidebar h3 {
-        font-size: 1rem !important;
-        margin-bottom: 0.5rem !important;
-        margin-top: 1rem !important;
+    /* Expander styling */
+    .stExpander {
+        border: 1px solid var(--bitwave-border);
+        border-radius: 8px;
+        margin: 1.5rem 0;
+    }
+    
+    /* File uploader fixes */
+    .stFileUploader > div {
+        text-align: center !important;
+    }
+    
+    .stFileUploader [data-testid="stFileUploadDropzone"] {
+        border: 2px dashed var(--bitwave-border);
+        border-radius: 12px;
+        background: var(--bitwave-light-gray);
+        padding: 2rem;
+        text-align: center;
+    }
+    
+    .stFileUploader [data-testid="stFileUploadDropzone"]:hover {
+        border-color: var(--bitwave-blue);
+        background: #f0f9ff;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -293,6 +260,33 @@ def main():
     st.markdown('<div class="content-description">', unsafe_allow_html=True)
     st.markdown("Convert your Bitwave actions report into tax-ready formats with official IRS Form 8949 templates.")
     st.markdown('</div>', unsafe_allow_html=True)
+
+    # Information section
+    col_info1, col_info2, col_info3 = st.columns([1, 2, 1])
+    with col_info2:
+        with st.expander("ℹ️ How This Works", expanded=False):
+            st.markdown("""
+            **This tool is specifically designed for Bitwave actions reports:**
+            
+            1. **Upload** your Bitwave actions CSV export
+            2. **Automatically extracts** sell transactions with proper lot matching
+            3. **Maps acquisition dates** using lot IDs from buy transactions
+            4. **Validates calculations** against Bitwave's short/long-term gain/loss columns
+            5. **Choose output:**
+               - **CSV file** → Upload to TurboTax, TaxAct, FreeTaxUSA, etc.
+               - **PDF file** → Official IRS Form 8949 ready for direct filing
+            
+            **Required Bitwave columns:**
+            - `action` (buy/sell)
+            - `asset` (BTC, ETH, etc.)
+            - `timestamp` (transaction date)
+            - `lotId` (for matching buy/sell pairs)
+            - `proceeds` (column R)
+            - `costBasisRelieved` (column W)
+            - `shortTermGainLoss` and `longTermGainLoss` (for validation)
+            """)
+
+    # Sidebar for configuration
     st.sidebar.markdown("## Configuration")
     
     # Form type selection with clean formatting and inline help
@@ -303,7 +297,7 @@ def main():
         st.markdown('<span title="Most crypto transactions use Part I (Box B)">❓</span>', unsafe_allow_html=True)
     
     form_type = st.sidebar.selectbox(
-        "",  # Empty label since we're using markdown above
+        "",
         [
             "Part I - Short-term (Box B) - Basis NOT reported", 
             "Part I - Short-term (Box A) - Basis reported",
@@ -316,7 +310,7 @@ def main():
     )
     
     # Taxpayer information for PDF generation
-    st.sidebar.markdown("---")  # Add separator line
+    st.sidebar.markdown("---")
     st.sidebar.markdown("**Taxpayer Information**")
     taxpayer_name = st.sidebar.text_input("Full Name", placeholder="Jenny L")
     taxpayer_ssn = st.sidebar.text_input("Social Security Number", placeholder="XXX-XX-XXXX")
@@ -334,7 +328,7 @@ def main():
         st.markdown('</div>', unsafe_allow_html=True)
         
         tax_year = st.selectbox(
-            "",  # Empty label since we're using markdown above
+            "",
             [2023, 2022, 2021, 2020, 2019, 2018],
             index=1,
             help="Select the tax year to extract transactions for",
@@ -361,7 +355,7 @@ def main():
         st.markdown('</div>', unsafe_allow_html=True)
         
         uploaded_file = st.file_uploader(
-            "",  # Empty label since we're using markdown above
+            "",
             type=["csv"],
             help="Upload the CSV export from your Bitwave actions report"
         )
@@ -492,7 +486,7 @@ def main():
                 st.markdown('</div>', unsafe_allow_html=True)
                 
                 output_format = st.radio(
-                    "",  # Empty label since we're using markdown above
+                    "",
                     [
                         "📊 CSV file for tax software (TurboTax, TaxAct, etc.)",
                         "📄 Complete Form 8949 PDF for IRS filing"
