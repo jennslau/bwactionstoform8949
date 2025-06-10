@@ -1,4 +1,302 @@
-# Centered content container
+import streamlit as st
+import pandas as pd
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+import io
+import zipfile
+from datetime import datetime
+import re
+import requests
+import PyPDF2
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+def main():
+    st.set_page_config(
+        page_title="Bitwave Actions to Form 8949 Converter",
+        page_icon="₿",
+        layout="wide"
+    )
+    
+    # Custom CSS for Bitwave styling and centering
+    st.markdown("""
+    <style>
+    /* Bitwave design system colors */
+    :root {
+        --bitwave-blue: #1B9CFC;
+        --bitwave-green: #00D2B8;
+        --bitwave-dark: #1a1a1a;
+        --bitwave-gray: #6b7280;
+        --bitwave-light-gray: #f8fafc;
+        --bitwave-border: #e5e7eb;
+    }
+    
+    /* Global font improvements */
+    .stApp {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    /* Header styling - more subtle like Bitwave */
+    .main-header {
+        background: linear-gradient(135deg, #1a1a1a 0%, #2d3748 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 2.5rem 2rem;
+        margin-bottom: 3rem;
+        text-align: center;
+    }
+    
+    .main-header h1 {
+        color: white !important;
+        font-size: 2.25rem;
+        font-weight: 600;
+        margin: 0;
+        letter-spacing: -0.025em;
+    }
+    
+    .bitwave-logo {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-right: 1rem;
+        background: linear-gradient(45deg, var(--bitwave-blue), var(--bitwave-green));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -0.02em;
+    }
+    
+    /* Center all step containers with Bitwave spacing */
+    .step-container {
+        display: flex;
+        justify-content: center;
+        margin: 4rem 0;
+        padding: 0 1rem;
+    }
+    
+    /* Remove any remaining step-content styling that might create boxes */
+    .step-content {
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+    }
+    
+    /* Step headers - Bitwave style */
+    .step-header {
+        color: var(--bitwave-dark) !important;
+        font-size: 1.75rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        text-align: center;
+        letter-spacing: -0.025em;
+        border-bottom: 2px solid var(--bitwave-green);
+        padding-bottom: 0.75rem;
+        display: inline-block;
+        width: auto;
+    }
+    
+    /* Bitwave-style buttons */
+    .stButton > button {
+        background: linear-gradient(135deg, var(--bitwave-blue) 0%, var(--bitwave-green) 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 0.75rem 2rem;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+        letter-spacing: -0.025em;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(27, 156, 252, 0.25);
+    }
+    
+    /* Info and success boxes - Bitwave style */
+    .stInfo {
+        background: var(--bitwave-light-gray);
+        border: 1px solid var(--bitwave-border);
+        border-left: 4px solid var(--bitwave-blue);
+        border-radius: 8px;
+        padding: 1rem;
+    }
+    
+    .stSuccess {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-left: 4px solid var(--bitwave-green);
+        border-radius: 8px;
+        padding: 1rem;
+    }
+    
+    /* Form elements styling */
+    .stSelectbox, .stFileUploader, .stRadio {
+        margin: 1rem 0;
+    }
+    
+    .stSelectbox label, .stFileUploader label, .stRadio label {
+        color: var(--bitwave-dark) !important;
+        font-weight: 500;
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Metrics styling */
+    [data-testid="metric-container"] {
+        background: var(--bitwave-light-gray);
+        border: 1px solid var(--bitwave-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+    }
+    
+    [data-testid="metric-container"] [data-testid="metric-value"] {
+        color: var(--bitwave-dark);
+        font-weight: 600;
+    }
+    
+    /* Sidebar styling - cleaner */
+    .stSidebar {
+        background: var(--bitwave-light-gray);
+        border-right: 1px solid var(--bitwave-border);
+    }
+    
+    .stSidebar .stSelectbox label {
+        font-size: 0.9rem !important;
+        color: var(--bitwave-dark) !important;
+        font-weight: 500;
+    }
+    
+    .stSidebar .stColumns {
+        gap: 0 !important;
+    }
+    
+    .stSidebar .stColumns > div {
+        padding: 0 !important;
+    }
+    
+    .stSidebar span[title] {
+        cursor: help;
+        color: var(--bitwave-gray);
+        font-size: 0.875rem;
+        float: right;
+        margin-top: 1px;
+    }
+    
+    .stSidebar span[title]:hover {
+        color: var(--bitwave-blue);
+    }
+    
+    .stSidebar .stMarkdown h2 {
+        font-size: 1.25rem !important;
+        font-weight: 600 !important;
+        color: var(--bitwave-dark) !important;
+        margin-bottom: 1.5rem !important;
+    }
+    
+    .stSidebar .stMarkdown strong {
+        color: var(--bitwave-dark) !important;
+        font-size: 0.9rem !important;
+        font-weight: 500 !important;
+        margin-bottom: 0 !important;
+    }
+    
+    .stSidebar .stMarkdown {
+        margin-bottom: 0.1rem !important;
+    }
+    
+    .stSidebar .stSelectbox {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .stSidebar .stSelectbox > div {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .stSidebar .stTextInput {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .stSidebar .stTextInput > div {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    /* Fix gaps in main content area */
+    .stSelectbox {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .stSelectbox > div {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .stSelectbox > div > div {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    /* Content descriptions */
+    .content-description {
+        color: var(--bitwave-gray);
+        font-size: 1.125rem;
+        line-height: 1.6;
+        text-align: center;
+        margin: 2rem 0;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    
+    /* Expander styling */
+    .stExpander {
+        border: 1px solid var(--bitwave-border);
+        border-radius: 8px;
+        margin: 1.5rem 0;
+    }
+    
+    /* File uploader fixes */
+    .stFileUploader > div {
+        text-align: center !important;
+    }
+    
+    .stFileUploader [data-testid="stFileUploadDropzone"] {
+        border: 2px dashed var(--bitwave-border);
+        border-radius: 12px;
+        background: var(--bitwave-light-gray);
+        padding: 2rem;
+        text-align: center;
+    }
+    
+    .stFileUploader [data-testid="stFileUploadDropzone"]:hover {
+        border-color: var(--bitwave-blue);
+        background: #f0f9ff;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Header with Bitwave branding
+    st.markdown("""
+    <div style="display: flex; justify-content: center; margin: 2rem 0;">
+        <div style="max-width: 900px; width: 100%;">
+            <div class="main-header">
+                <div class="bitwave-logo">BITWAVE</div>
+                <h1>Actions to Form 8949 Converter</h1>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Centered content container
     col_desc1, col_desc2, col_desc3 = st.columns([1, 2, 1])
     with col_desc2:
         st.markdown('<div class="content-description">', unsafe_allow_html=True)
@@ -435,6 +733,12 @@ def generate_tax_software_csv(transactions, tax_year):
     csv_lines = []
     csv_lines.append("Description,Date Acquired,Date Sold,Sales Price,Cost Basis,Gain/Loss,Adjustment Code,Adjustment Amount")
     
+def generate_tax_software_csv(transactions, tax_year):
+    """Generate CSV for tax software import"""
+    
+    csv_lines = []
+    csv_lines.append("Description,Date Acquired,Date Sold,Sales Price,Cost Basis,Gain/Loss,Adjustment Code,Adjustment Amount")
+    
     for transaction in transactions:
         # Format dates
         date_acquired = transaction['date_acquired'].strftime('%m/%d/%Y') if transaction['date_acquired'] else '01/01/2020'
@@ -712,7 +1016,6 @@ def create_form_with_pdf_overlay(buffer, page_transactions, form_type, taxpayer_
         print(f"Error in PDF overlay: {e}")
         return False
 
-
 def create_form_8949_page_custom(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions):
     """Create a custom Form 8949 PDF page with precise table formatting"""
     c = canvas.Canvas(buffer, pagesize=letter)
@@ -924,303 +1227,4 @@ def create_zip_file(pdf_files):
     return zip_buffer.getvalue()
 
 if __name__ == "__main__":
-    main()import streamlit as st
-import pandas as pd
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.lib.units import inch
-import io
-import zipfile
-from datetime import datetime
-import re
-import requests
-import PyPDF2
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-
-def main():
-    st.set_page_config(
-        page_title="Bitwave Actions to Form 8949 Converter",
-        page_icon="₿",
-        layout="wide"
-    )
-    
-    # Custom CSS for Bitwave styling and centering
-    st.markdown("""
-    <style>
-    /* Bitwave design system colors */
-    :root {
-        --bitwave-blue: #1B9CFC;
-        --bitwave-green: #00D2B8;
-        --bitwave-dark: #1a1a1a;
-        --bitwave-gray: #6b7280;
-        --bitwave-light-gray: #f8fafc;
-        --bitwave-border: #e5e7eb;
-    }
-    
-    /* Global font improvements */
-    .stApp {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-    
-    /* Header styling - more subtle like Bitwave */
-    .main-header {
-        background: linear-gradient(135deg, #1a1a1a 0%, #2d3748 100%);
-        color: white;
-        border-radius: 12px;
-        padding: 2.5rem 2rem;
-        margin-bottom: 3rem;
-        text-align: center;
-    }
-    
-    .main-header h1 {
-        color: white !important;
-        font-size: 2.25rem;
-        font-weight: 600;
-        margin: 0;
-        letter-spacing: -0.025em;
-    }
-    
-    .bitwave-logo {
-        font-size: 2.5rem;
-        font-weight: 700;
-        margin-right: 1rem;
-        background: linear-gradient(45deg, var(--bitwave-blue), var(--bitwave-green));
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        letter-spacing: -0.02em;
-    }
-    
-    /* Center all step containers with Bitwave spacing */
-    .step-container {
-        display: flex;
-        justify-content: center;
-        margin: 4rem 0;
-        padding: 0 1rem;
-    }
-    
-    /* Remove any remaining step-content styling that might create boxes */
-    .step-content {
-        background: transparent !important;
-        border: none !important;
-        padding: 0 !important;
-        box-shadow: none !important;
-        border-radius: 0 !important;
-    }
-    
-    /* Step headers - Bitwave style */
-    .step-header {
-        color: var(--bitwave-dark) !important;
-        font-size: 1.75rem;
-        font-weight: 600;
-        margin-bottom: 1.5rem;
-        text-align: center;
-        letter-spacing: -0.025em;
-        border-bottom: 2px solid var(--bitwave-green);
-        padding-bottom: 0.75rem;
-        display: inline-block;
-        width: auto;
-    }
-    
-    /* Bitwave-style buttons */
-    .stButton > button {
-        background: linear-gradient(135deg, var(--bitwave-blue) 0%, var(--bitwave-green) 100%);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-weight: 600;
-        padding: 0.75rem 2rem;
-        font-size: 1rem;
-        transition: all 0.2s ease;
-        letter-spacing: -0.025em;
-    }
-    
-    .stButton > button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(27, 156, 252, 0.25);
-    }
-    
-    /* Info and success boxes - Bitwave style */
-    .stInfo {
-        background: var(--bitwave-light-gray);
-        border: 1px solid var(--bitwave-border);
-        border-left: 4px solid var(--bitwave-blue);
-        border-radius: 8px;
-        padding: 1rem;
-    }
-    
-    .stSuccess {
-        background: #f0fdf4;
-        border: 1px solid #bbf7d0;
-        border-left: 4px solid var(--bitwave-green);
-        border-radius: 8px;
-        padding: 1rem;
-    }
-    
-    /* Form elements styling */
-    .stSelectbox, .stFileUploader, .stRadio {
-        margin: 1rem 0;
-    }
-    
-    .stSelectbox label, .stFileUploader label, .stRadio label {
-        color: var(--bitwave-dark) !important;
-        font-weight: 500;
-        font-size: 1rem;
-        margin-bottom: 0.5rem;
-    }
-    
-    /* Metrics styling */
-    [data-testid="metric-container"] {
-        background: var(--bitwave-light-gray);
-        border: 1px solid var(--bitwave-border);
-        border-radius: 12px;
-        padding: 1.5rem;
-        text-align: center;
-    }
-    
-    [data-testid="metric-container"] [data-testid="metric-value"] {
-        color: var(--bitwave-dark);
-        font-weight: 600;
-    }
-    
-    /* Sidebar styling - cleaner */
-    .stSidebar {
-        background: var(--bitwave-light-gray);
-        border-right: 1px solid var(--bitwave-border);
-    }
-    
-    .stSidebar .stSelectbox label {
-        font-size: 0.9rem !important;
-        color: var(--bitwave-dark) !important;
-        font-weight: 500;
-    }
-    
-    .stSidebar .stColumns {
-        gap: 0 !important;
-    }
-    
-    .stSidebar .stColumns > div {
-        padding: 0 !important;
-    }
-    
-    .stSidebar span[title] {
-        cursor: help;
-        color: var(--bitwave-gray);
-        font-size: 0.875rem;
-        float: right;
-        margin-top: 1px;
-    }
-    
-    .stSidebar span[title]:hover {
-        color: var(--bitwave-blue);
-    }
-    
-    .stSidebar .stMarkdown h2 {
-        font-size: 1.25rem !important;
-        font-weight: 600 !important;
-        color: var(--bitwave-dark) !important;
-        margin-bottom: 1.5rem !important;
-    }
-    
-    .stSidebar .stMarkdown strong {
-        color: var(--bitwave-dark) !important;
-        font-size: 0.9rem !important;
-        font-weight: 500 !important;
-        margin-bottom: 0 !important;
-    }
-    
-    .stSidebar .stMarkdown {
-        margin-bottom: 0.1rem !important;
-    }
-    
-    .stSidebar .stSelectbox {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    .stSidebar .stSelectbox > div {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    .stSidebar .stTextInput {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    .stSidebar .stTextInput > div {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    /* Fix gaps in main content area */
-    .stSelectbox {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    .stSelectbox > div {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    .stSelectbox > div > div {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    /* Content descriptions */
-    .content-description {
-        color: var(--bitwave-gray);
-        font-size: 1.125rem;
-        line-height: 1.6;
-        text-align: center;
-        margin: 2rem 0;
-        max-width: 600px;
-        margin-left: auto;
-        margin-right: auto;
-    }
-    
-    /* Expander styling */
-    .stExpander {
-        border: 1px solid var(--bitwave-border);
-        border-radius: 8px;
-        margin: 1.5rem 0;
-    }
-    
-    /* File uploader fixes */
-    .stFileUploader > div {
-        text-align: center !important;
-    }
-    
-    .stFileUploader [data-testid="stFileUploadDropzone"] {
-        border: 2px dashed var(--bitwave-border);
-        border-radius: 12px;
-        background: var(--bitwave-light-gray);
-        padding: 2rem;
-        text-align: center;
-    }
-    
-    .stFileUploader [data-testid="stFileUploadDropzone"]:hover {
-        border-color: var(--bitwave-blue);
-        background: #f0f9ff;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Header with Bitwave branding
-    st.markdown("""
-    <div style="display: flex; justify-content: center; margin: 2rem 0;">
-        <div style="max-width: 900px; width: 100%;">
-            <div class="main-header">
-                <div class="bitwave-logo">BITWAVE</div>
-                <h1>Actions to Form 8949 Converter</h1>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Centered content container
-    col_desc1, col_desc2, col_desc
+    main()
