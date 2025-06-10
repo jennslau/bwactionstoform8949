@@ -83,6 +83,7 @@ def main():
         border: 1px solid var(--bitwave-border);
         padding: 2.5rem;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        text-align: center;
     }
     
     /* Step headers - Bitwave style */
@@ -95,8 +96,8 @@ def main():
         letter-spacing: -0.025em;
         border-bottom: 2px solid var(--bitwave-green);
         padding-bottom: 0.75rem;
-        display: block;
-        width: 100%;
+        display: inline-block;
+        width: auto;
     }
     
     /* Bitwave-style buttons */
@@ -207,7 +208,17 @@ def main():
     }
     
     .stSidebar .stMarkdown {
-        margin-bottom: 0.25rem !important;
+        margin-bottom: 0.1rem !important;
+    }
+    
+    .stSidebar .stSelectbox {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .stSidebar .stSelectbox > div {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
     }
     
     /* Content descriptions */
@@ -262,9 +273,11 @@ def main():
     """, unsafe_allow_html=True)
     
     # Centered content container
-    st.markdown('<div class="content-description">', unsafe_allow_html=True)
-    st.markdown("Convert your Bitwave actions report into tax-ready formats with official IRS Form 8949 templates.")
-    st.markdown('</div>', unsafe_allow_html=True)
+    col_desc1, col_desc2, col_desc3 = st.columns([1, 2, 1])
+    with col_desc2:
+        st.markdown('<div class="content-description">', unsafe_allow_html=True)
+        st.markdown("Convert your Bitwave actions report into tax-ready formats with official IRS Form 8949 templates.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # Information section
     col_info1, col_info2, col_info3 = st.columns([1, 2, 1])
@@ -311,14 +324,14 @@ def main():
     
     # Taxpayer information for PDF generation
     st.sidebar.markdown("---")
-    st.sidebar.markdown("**Taxpayer Information**")
-    taxpayer_name = st.sidebar.text_input("Full Name", placeholder="Jenny L")
+    st.sidebar.markdown("**Taxpayer Information:**")
+    taxpayer_name = st.sidebar.text_input("Full Name", placeholder="Enter your full name")
     taxpayer_ssn = st.sidebar.text_input("Social Security Number", placeholder="XXX-XX-XXXX")
     
     # Step 1: Tax Year Selection (Centered)
     st.markdown('<div class="step-container">', unsafe_allow_html=True)
     st.markdown('<div class="step-content">', unsafe_allow_html=True)
-    st.markdown('<h2 class="step-header">🗓️ Step 1: Select Tax Year</h2>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center;"><h2 class="step-header">🗓️ Step 1: Select Tax Year</h2></div>', unsafe_allow_html=True)
     
     # Centered tax year selection with proper labels
     col_left, col_center, col_right = st.columns([1, 2, 1])
@@ -345,7 +358,7 @@ def main():
     # Step 2: Upload File (Centered)
     st.markdown('<div class="step-container">', unsafe_allow_html=True)
     st.markdown('<div class="step-content">', unsafe_allow_html=True)
-    st.markdown('<h2 class="step-header">📂 Step 2: Upload Bitwave Actions Report</h2>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center;"><h2 class="step-header">📂 Step 2: Upload Bitwave Actions Report</h2></div>', unsafe_allow_html=True)
     
     # Centered file uploader with proper label
     col_left, col_center, col_right = st.columns([1, 2, 1])
@@ -475,7 +488,7 @@ def main():
         st.markdown("---")
         st.markdown('<div class="step-container">', unsafe_allow_html=True)
         st.markdown('<div class="step-content">', unsafe_allow_html=True)
-        st.markdown('<h2 class="step-header">🎯 Step 3: Choose Your Output</h2>', unsafe_allow_html=True)
+        st.markdown('<div style="text-align: center;"><h2 class="step-header">🎯 Step 3: Choose Your Output</h2></div>', unsafe_allow_html=True)
         
         if transactions:
             # Centered output format selection
