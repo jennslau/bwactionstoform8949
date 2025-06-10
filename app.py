@@ -23,7 +23,6 @@
             - `shortTermGainLoss` and `longTermGainLoss` (for validation)
             """)
     
-    
     # Sidebar for configurationimport streamlit as st
 import pandas as pd
 from reportlab.pdfgen import canvas
