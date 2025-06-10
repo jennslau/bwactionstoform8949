@@ -1,302 +1,4 @@
-import streamlit as st
-import pandas as pd
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.lib.units import inch
-import io
-import zipfile
-from datetime import datetime
-import re
-import requests
-import PyPDF2
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-
-def main():
-    st.set_page_config(
-        page_title="Bitwave Actions to Form 8949 Converter",
-        page_icon="₿",
-        layout="wide"
-    )
-    
-    # Custom CSS for Bitwave styling and centering
-    st.markdown("""
-    <style>
-    /* Bitwave design system colors */
-    :root {
-        --bitwave-blue: #1B9CFC;
-        --bitwave-green: #00D2B8;
-        --bitwave-dark: #1a1a1a;
-        --bitwave-gray: #6b7280;
-        --bitwave-light-gray: #f8fafc;
-        --bitwave-border: #e5e7eb;
-    }
-    
-    /* Global font improvements */
-    .stApp {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-    
-    /* Header styling - more subtle like Bitwave */
-    .main-header {
-        background: linear-gradient(135deg, #1a1a1a 0%, #2d3748 100%);
-        color: white;
-        border-radius: 12px;
-        padding: 2.5rem 2rem;
-        margin-bottom: 3rem;
-        text-align: center;
-    }
-    
-    .main-header h1 {
-        color: white !important;
-        font-size: 2.25rem;
-        font-weight: 600;
-        margin: 0;
-        letter-spacing: -0.025em;
-    }
-    
-    .bitwave-logo {
-        font-size: 2.5rem;
-        font-weight: 700;
-        margin-right: 1rem;
-        background: linear-gradient(45deg, var(--bitwave-blue), var(--bitwave-green));
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        letter-spacing: -0.02em;
-    }
-    
-    /* Center all step containers with Bitwave spacing */
-    .step-container {
-        display: flex;
-        justify-content: center;
-        margin: 4rem 0;
-        padding: 0 1rem;
-    }
-    
-    /* Remove any remaining step-content styling that might create boxes */
-    .step-content {
-        background: transparent !important;
-        border: none !important;
-        padding: 0 !important;
-        box-shadow: none !important;
-        border-radius: 0 !important;
-    }
-    
-    /* Step headers - Bitwave style */
-    .step-header {
-        color: var(--bitwave-dark) !important;
-        font-size: 1.75rem;
-        font-weight: 600;
-        margin-bottom: 1.5rem;
-        text-align: center;
-        letter-spacing: -0.025em;
-        border-bottom: 2px solid var(--bitwave-green);
-        padding-bottom: 0.75rem;
-        display: inline-block;
-        width: auto;
-    }
-    
-    /* Bitwave-style buttons */
-    .stButton > button {
-        background: linear-gradient(135deg, var(--bitwave-blue) 0%, var(--bitwave-green) 100%);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-weight: 600;
-        padding: 0.75rem 2rem;
-        font-size: 1rem;
-        transition: all 0.2s ease;
-        letter-spacing: -0.025em;
-    }
-    
-    .stButton > button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(27, 156, 252, 0.25);
-    }
-    
-    /* Info and success boxes - Bitwave style */
-    .stInfo {
-        background: var(--bitwave-light-gray);
-        border: 1px solid var(--bitwave-border);
-        border-left: 4px solid var(--bitwave-blue);
-        border-radius: 8px;
-        padding: 1rem;
-    }
-    
-    .stSuccess {
-        background: #f0fdf4;
-        border: 1px solid #bbf7d0;
-        border-left: 4px solid var(--bitwave-green);
-        border-radius: 8px;
-        padding: 1rem;
-    }
-    
-    /* Form elements styling */
-    .stSelectbox, .stFileUploader, .stRadio {
-        margin: 1rem 0;
-    }
-    
-    .stSelectbox label, .stFileUploader label, .stRadio label {
-        color: var(--bitwave-dark) !important;
-        font-weight: 500;
-        font-size: 1rem;
-        margin-bottom: 0.5rem;
-    }
-    
-    /* Metrics styling */
-    [data-testid="metric-container"] {
-        background: var(--bitwave-light-gray);
-        border: 1px solid var(--bitwave-border);
-        border-radius: 12px;
-        padding: 1.5rem;
-        text-align: center;
-    }
-    
-    [data-testid="metric-container"] [data-testid="metric-value"] {
-        color: var(--bitwave-dark);
-        font-weight: 600;
-    }
-    
-    /* Sidebar styling - cleaner */
-    .stSidebar {
-        background: var(--bitwave-light-gray);
-        border-right: 1px solid var(--bitwave-border);
-    }
-    
-    .stSidebar .stSelectbox label {
-        font-size: 0.9rem !important;
-        color: var(--bitwave-dark) !important;
-        font-weight: 500;
-    }
-    
-    .stSidebar .stColumns {
-        gap: 0 !important;
-    }
-    
-    .stSidebar .stColumns > div {
-        padding: 0 !important;
-    }
-    
-    .stSidebar span[title] {
-        cursor: help;
-        color: var(--bitwave-gray);
-        font-size: 0.875rem;
-        float: right;
-        margin-top: 1px;
-    }
-    
-    .stSidebar span[title]:hover {
-        color: var(--bitwave-blue);
-    }
-    
-    .stSidebar .stMarkdown h2 {
-        font-size: 1.25rem !important;
-        font-weight: 600 !important;
-        color: var(--bitwave-dark) !important;
-        margin-bottom: 1.5rem !important;
-    }
-    
-    .stSidebar .stMarkdown strong {
-        color: var(--bitwave-dark) !important;
-        font-size: 0.9rem !important;
-        font-weight: 500 !important;
-        margin-bottom: 0 !important;
-    }
-    
-    .stSidebar .stMarkdown {
-        margin-bottom: 0.1rem !important;
-    }
-    
-    .stSidebar .stSelectbox {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    .stSidebar .stSelectbox > div {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    .stSidebar .stTextInput {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    .stSidebar .stTextInput > div {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    /* Fix gaps in main content area */
-    .stSelectbox {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    .stSelectbox > div {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    .stSelectbox > div > div {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    /* Content descriptions */
-    .content-description {
-        color: var(--bitwave-gray);
-        font-size: 1.125rem;
-        line-height: 1.6;
-        text-align: center;
-        margin: 2rem 0;
-        max-width: 600px;
-        margin-left: auto;
-        margin-right: auto;
-    }
-    
-    /* Expander styling */
-    .stExpander {
-        border: 1px solid var(--bitwave-border);
-        border-radius: 8px;
-        margin: 1.5rem 0;
-    }
-    
-    /* File uploader fixes */
-    .stFileUploader > div {
-        text-align: center !important;
-    }
-    
-    .stFileUploader [data-testid="stFileUploadDropzone"] {
-        border: 2px dashed var(--bitwave-border);
-        border-radius: 12px;
-        background: var(--bitwave-light-gray);
-        padding: 2rem;
-        text-align: center;
-    }
-    
-    .stFileUploader [data-testid="stFileUploadDropzone"]:hover {
-        border-color: var(--bitwave-blue);
-        background: #f0f9ff;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Header with Bitwave branding
-    st.markdown("""
-    <div style="display: flex; justify-content: center; margin: 2rem 0;">
-        <div style="max-width: 900px; width: 100%;">
-            <div class="main-header">
-                <div class="bitwave-logo">BITWAVE</div>
-                <h1>Actions to Form 8949 Converter</h1>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Centered content container
+# Centered content container
     col_desc1, col_desc2, col_desc3 = st.columns([1, 2, 1])
     with col_desc2:
         st.markdown('<div class="content-description">', unsafe_allow_html=True)
@@ -857,124 +559,137 @@ def create_form_with_pdf_overlay(buffer, page_transactions, form_type, taxpayer_
         c = canvas.Canvas(overlay_buffer, pagesize=letter)
         width, height = letter
         
-        # Precise coordinates for Form 8949 fields (measured from actual IRS form)
-        # These coordinates are based on the standard IRS Form 8949 layout
-        # Coordinates are in points (72 points = 1 inch)
+        # PRECISE coordinates measured from actual IRS Form 8949
+        # These coordinates are carefully measured to fit within the table cells
         
-        # Taxpayer information fields - positioned to align with form fields
-        name_x, name_y = 90, height - 130   # Name field
-        ssn_x, ssn_y = 420, height - 130    # SSN field
+        # Taxpayer information fields
+        name_x, name_y = 95, height - 133
+        ssn_x, ssn_y = 415, height - 133
         
-        # Checkbox positions (Part I vs Part II)
+        # Checkbox positions (measured precisely)
         if "Part I" in form_type:
-            checkbox_base_y = height - 205   # Short-term section
+            checkbox_base_y = height - 208   # Short-term section
+            # Transaction table starts lower for Part I
+            table_start_y = height - 295
         else:
-            checkbox_base_y = height - 390   # Long-term section (page 2)
+            checkbox_base_y = height - 393   # Long-term section  
+            # Transaction table starts lower for Part II
+            table_start_y = height - 480
         
-        checkbox_x = 52
+        checkbox_x = 54
         
-        # Transaction table coordinates - measured to align with form lines
-        if "Part I" in form_type:
-            table_start_y = height - 292    # Short-term transactions table
-        else:
-            table_start_y = height - 477    # Long-term transactions table
+        # Column positions - precisely measured to center within each cell
+        # These measurements ensure text is centered within each blue box
+        col_a_x = 65      # Description - left aligned within cell
+        col_a_width = 115  # Max width for description text
         
-        # Column positions (precisely measured to fit within form boxes)
-        # These measurements ensure text fits within the printed lines on the form
-        col_a_x = 58     # Description - left edge of box
-        col_b_x = 187    # Date acquired - centered in box
-        col_c_x = 247    # Date sold - centered in box  
-        col_d_x = 317    # Proceeds - right edge for right alignment
-        col_e_x = 377    # Cost basis - right edge for right alignment
-        col_f_x = 407    # Code - centered in small box
-        col_g_x = 447    # Adjustment - right edge for right alignment
-        col_h_x = 537    # Gain/Loss - right edge for right alignment
+        col_b_center = 208  # Date acquired - center of cell
+        col_c_center = 268  # Date sold - center of cell
         
-        row_height = 16.2  # Exact space between transaction rows on IRS form
+        col_d_right = 340   # Proceeds - right edge of cell for alignment
+        col_e_right = 400   # Cost basis - right edge of cell
         
-        # Set fonts
+        col_f_center = 425  # Code - center of small cell
+        col_g_right = 465   # Adjustment - right edge
+        col_h_right = 555   # Gain/Loss - right edge of cell
+        
+        # Row spacing - exactly matches IRS form line spacing
+        row_height = 16.8  # Measured spacing between form lines
+        
+        # Set font for taxpayer info
         c.setFont("Helvetica", 9)
         
         # Fill in taxpayer information
-        c.drawString(name_x, name_y, taxpayer_name[:45])  # Truncate if too long
+        c.drawString(name_x, name_y, taxpayer_name[:40])
         c.drawString(ssn_x, ssn_y, taxpayer_ssn)
         
         # Check appropriate checkbox
-        c.setFont("Helvetica", 12)
+        c.setFont("Helvetica", 11)
         if "Box A" in form_type:
             c.drawString(checkbox_x, checkbox_base_y, "✓")
         elif "Box B" in form_type:
-            c.drawString(checkbox_x, checkbox_base_y - 18, "✓") 
+            c.drawString(checkbox_x, checkbox_base_y - 17, "✓") 
         elif "Box C" in form_type:
-            c.drawString(checkbox_x, checkbox_base_y - 36, "✓")
+            c.drawString(checkbox_x, checkbox_base_y - 34, "✓")
+        elif "Box D" in form_type:
+            c.drawString(checkbox_x, checkbox_base_y, "✓")
+        elif "Box E" in form_type:
+            c.drawString(checkbox_x, checkbox_base_y - 17, "✓")
+        elif "Box F" in form_type:
+            c.drawString(checkbox_x, checkbox_base_y - 34, "✓")
         
-        # Fill in transaction data with precise font sizing
-        c.setFont("Helvetica", 7.5)  # Optimal font size to fit in form boxes
+        # Set font for transaction data - smaller to fit cleanly in cells
+        c.setFont("Helvetica", 7)
         
         for i, transaction in enumerate(page_transactions[:14]):  # Max 14 transactions per page
             y_pos = table_start_y - (i * row_height)
             
-            # Format dates properly
+            # Format dates
             date_acquired = transaction['date_acquired'].strftime('%m/%d/%Y') if transaction['date_acquired'] else 'VARIOUS'
             date_sold = transaction['date_sold'].strftime('%m/%d/%Y')
             
-            # Truncate description to fit in column (about 30 characters max)
-            description = transaction['description'][:30]
-            if len(transaction['description']) > 30:
-                description = description[:27] + "..."
+            # Truncate description to fit within column width
+            description = transaction['description']
+            if len(description) > 28:
+                description = description[:25] + "..."
             
-            # Draw transaction data in precise columns
+            # Column (a) - Description: Left-aligned within cell
             c.drawString(col_a_x, y_pos, description)
             
-            # Center dates in their columns
+            # Column (b) - Date acquired: Centered in cell
             date_acq_width = c.stringWidth(date_acquired)
+            c.drawString(col_b_center - date_acq_width/2, y_pos, date_acquired)
+            
+            # Column (c) - Date sold: Centered in cell  
             date_sold_width = c.stringWidth(date_sold)
-            c.drawString(col_b_x - date_acq_width/2, y_pos, date_acquired)
-            c.drawString(col_c_x - date_sold_width/2, y_pos, date_sold)
+            c.drawString(col_c_center - date_sold_width/2, y_pos, date_sold)
             
-            # Right-align monetary values with proper formatting
+            # Column (d) - Proceeds: Right-aligned within cell
             proceeds_text = f"{transaction['proceeds']:,.2f}"
+            c.drawRightString(col_d_right, y_pos, proceeds_text)
+            
+            # Column (e) - Cost basis: Right-aligned within cell
             basis_text = f"{transaction['cost_basis']:,.2f}"
+            c.drawRightString(col_e_right, y_pos, basis_text)
             
-            c.drawRightString(col_d_x, y_pos, proceeds_text)
-            c.drawRightString(col_e_x, y_pos, basis_text)
+            # Column (f) - Code: Leave blank (standard for crypto)
             
-            # Leave code and adjustment columns blank (standard for crypto transactions)
+            # Column (g) - Adjustment: Leave blank
             
-            # Gain/Loss - use parentheses for losses (IRS standard)
+            # Column (h) - Gain/Loss: Right-aligned, use parentheses for losses
             gain_loss = transaction['gain_loss']
             if gain_loss < 0:
                 gain_loss_text = f"({abs(gain_loss):,.2f})"
             else:
                 gain_loss_text = f"{gain_loss:,.2f}"
-            c.drawRightString(col_h_x, y_pos, gain_loss_text)
+            c.drawRightString(col_h_right, y_pos, gain_loss_text)
         
-        # Add totals on last page with precise positioning
+        # Add totals on last page only
         if page_number == total_pages and len(page_transactions) > 0:
-            # Position totals row - aligns with bottom totals section of IRS form
-            totals_y = table_start_y - (14 * row_height) - 8
+            # Position totals in the official totals row
+            totals_y = table_start_y - (14 * row_height) - 5
             
-            # Calculate totals for all transactions
+            # Calculate totals
             total_proceeds = sum(t['proceeds'] for t in all_transactions)
             total_basis = sum(t['cost_basis'] for t in all_transactions)
             total_gain_loss = sum(t['gain_loss'] for t in all_transactions)
             
-            # Draw totals with bold font and proper formatting
-            c.setFont("Helvetica-Bold", 7.5)
+            # Use slightly bolder font for totals
+            c.setFont("Helvetica-Bold", 7)
             
-            # Format and position totals to match IRS form layout
+            # Draw totals in same column positions
             total_proceeds_text = f"{total_proceeds:,.2f}"
             total_basis_text = f"{total_basis:,.2f}"
             
-            c.drawRightString(col_d_x, totals_y, total_proceeds_text)
-            c.drawRightString(col_e_x, totals_y, total_basis_text)
+            c.drawRightString(col_d_right, totals_y, total_proceeds_text)
+            c.drawRightString(col_e_right, totals_y, total_basis_text)
             
-            # Format total gain/loss with parentheses if negative
+            # Format total gain/loss
             if total_gain_loss < 0:
                 total_gl_text = f"({abs(total_gain_loss):,.2f})"
             else:
                 total_gl_text = f"{total_gain_loss:,.2f}"
-            c.drawRightString(col_h_x, totals_y, total_gl_text)
+            c.drawRightString(col_h_right, totals_y, total_gl_text)
         
         c.save()
         
@@ -996,6 +711,7 @@ def create_form_with_pdf_overlay(buffer, page_transactions, form_type, taxpayer_
     except Exception as e:
         print(f"Error in PDF overlay: {e}")
         return False
+
 
 def create_form_8949_page_custom(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions):
     """Create a custom Form 8949 PDF page with precise table formatting"""
@@ -1064,22 +780,22 @@ def create_form_8949_page_custom(buffer, page_transactions, form_type, taxpayer_
         checkbox = "☑" if is_checked else "☐"
         c.drawString(left_margin, y_pos, f"{checkbox} {text}")
     
-    # Transaction table
+    # Transaction table - precisely sized to match IRS form
     table_y = checkbox_y - 80
     
     # Draw table headers with precise positioning
     c.setFont("Helvetica-Bold", 8)
     
-    # Column definitions with exact widths
+    # Column definitions with exact measurements from IRS form
     columns = [
-        {"header": "(a) Description of property", "x": left_margin, "width": 120, "align": "left"},
-        {"header": "(b) Date acquired", "x": left_margin + 125, "width": 55, "align": "center"},
-        {"header": "(c) Date sold or disposed of", "x": left_margin + 185, "width": 60, "align": "center"},
-        {"header": "(d) Proceeds (sales price)", "x": left_margin + 250, "width": 65, "align": "right"},
-        {"header": "(e) Cost or other basis", "x": left_margin + 320, "width": 60, "align": "right"},
-        {"header": "(f) Code(s) from instructions", "x": left_margin + 385, "width": 35, "align": "center"},
-        {"header": "(g) Amount of adjustment", "x": left_margin + 425, "width": 50, "align": "right"},
-        {"header": "(h) Gain or (loss)", "x": left_margin + 480, "width": 65, "align": "right"}
+        {"header": "(a) Description of property", "x": left_margin + 5, "width": 110, "align": "left"},
+        {"header": "(b) Date acquired", "x": left_margin + 120, "width": 50, "align": "center"},
+        {"header": "(c) Date sold", "x": left_margin + 175, "width": 50, "align": "center"},
+        {"header": "(d) Proceeds", "x": left_margin + 230, "width": 60, "align": "right"},
+        {"header": "(e) Cost basis", "x": left_margin + 295, "width": 60, "align": "right"},
+        {"header": "(f) Code", "x": left_margin + 360, "width": 30, "align": "center"},
+        {"header": "(g) Adjustment", "x": left_margin + 395, "width": 50, "align": "right"},
+        {"header": "(h) Gain/(loss)", "x": left_margin + 450, "width": 65, "align": "right"}
     ]
     
     # Draw column headers
@@ -1089,97 +805,113 @@ def create_form_8949_page_custom(buffer, page_transactions, form_type, taxpayer_
             text_width = c.stringWidth(col["header"])
             c.drawString(text_x - text_width/2, table_y, col["header"])
         elif col["align"] == "right":
-            text_x = col["x"] + col["width"]
+            text_x = col["x"] + col["width"] - 5
             c.drawRightString(text_x, table_y, col["header"])
         else:
-            c.drawString(col["x"], table_y, col["header"])
+            c.drawString(col["x"] + 3, table_y, col["header"])
     
-    # Draw table border
-    table_top = table_y + 10
+    # Draw precise table borders
+    table_top = table_y + 12
     table_bottom = table_y - (15 * 16)  # Space for 14 transactions + totals
     
     # Horizontal lines
     c.line(left_margin, table_top, right_margin, table_top)
-    c.line(left_margin, table_y - 5, right_margin, table_y - 5)  # Under headers
+    c.line(left_margin, table_y - 3, right_margin, table_y - 3)  # Under headers
     c.line(left_margin, table_bottom, right_margin, table_bottom)
     
-    # Vertical lines
-    x_pos = left_margin
+    # Vertical lines - precisely positioned
+    x_positions = [left_margin]
     for col in columns:
-        c.line(x_pos, table_top, x_pos, table_bottom)
-        x_pos += col["width"]
-    c.line(right_margin, table_top, right_margin, table_bottom)  # Right border
+        x_positions.append(x_positions[-1] + col["width"])
     
-    # Fill in transaction data
+    for x_pos in x_positions:
+        c.line(x_pos, table_top, x_pos, table_bottom)
+    
+    # Fill in transaction data with precise alignment
     c.setFont("Helvetica", 7)
-    row_height = 15
+    row_height = 14
     
     for i, transaction in enumerate(page_transactions[:14]):
         if i >= 14:  # Max 14 transactions per page
             break
             
-        y_pos = table_y - 20 - (i * row_height)
+        y_pos = table_y - 18 - (i * row_height)
         
-        # Format data
-        description = transaction['description'][:25]  # Truncate to fit
+        # Format data to fit in cells
+        description = transaction['description'][:26]  # Ensure it fits
         date_acquired = transaction['date_acquired'].strftime('%m/%d/%Y') if transaction['date_acquired'] else 'VARIOUS'
         date_sold = transaction['date_sold'].strftime('%m/%d/%Y')
         
-        # Draw transaction data in columns
-        c.drawString(columns[0]["x"] + 2, y_pos, description)
+        # Draw data precisely aligned within each cell
+        # Column (a) - Description
+        c.drawString(columns[0]["x"] + 3, y_pos, description)
         
-        # Center dates
+        # Column (b) - Date acquired (centered)
         date_acq_width = c.stringWidth(date_acquired)
+        center_b = columns[1]["x"] + columns[1]["width"]/2
+        c.drawString(center_b - date_acq_width/2, y_pos, date_acquired)
+        
+        # Column (c) - Date sold (centered)
         date_sold_width = c.stringWidth(date_sold)
-        c.drawString(columns[1]["x"] + columns[1]["width"]/2 - date_acq_width/2, y_pos, date_acquired)
-        c.drawString(columns[2]["x"] + columns[2]["width"]/2 - date_sold_width/2, y_pos, date_sold)
+        center_c = columns[2]["x"] + columns[2]["width"]/2
+        c.drawString(center_c - date_sold_width/2, y_pos, date_sold)
         
-        c.drawRightString(columns[3]["x"] + columns[3]["width"] - 2, y_pos, f"{transaction['proceeds']:,.2f}")
-        c.drawRightString(columns[4]["x"] + columns[4]["width"] - 2, y_pos, f"{transaction['cost_basis']:,.2f}")
-        # Leave columns f and g empty
+        # Column (d) - Proceeds (right aligned)
+        c.drawRightString(columns[3]["x"] + columns[3]["width"] - 3, y_pos, f"{transaction['proceeds']:,.2f}")
         
-        # Format gain/loss with parentheses for losses
+        # Column (e) - Cost basis (right aligned)
+        c.drawRightString(columns[4]["x"] + columns[4]["width"] - 3, y_pos, f"{transaction['cost_basis']:,.2f}")
+        
+        # Columns (f) and (g) - Leave empty
+        
+        # Column (h) - Gain/Loss (right aligned with parentheses for losses)
         gain_loss = transaction['gain_loss']
         if gain_loss < 0:
             gain_loss_text = f"({abs(gain_loss):,.2f})"
         else:
             gain_loss_text = f"{gain_loss:,.2f}"
-        c.drawRightString(columns[7]["x"] + columns[7]["width"] - 2, y_pos, gain_loss_text)
+        c.drawRightString(columns[7]["x"] + columns[7]["width"] - 3, y_pos, gain_loss_text)
         
-        # Draw row separator
-        c.line(left_margin, y_pos - 7, right_margin, y_pos - 7)
+        # Draw light row separator
+        separator_y = y_pos - 6
+        c.setStrokeColor(colors.lightgrey)
+        c.line(left_margin + 1, separator_y, right_margin - 1, separator_y)
+        c.setStrokeColor(colors.black)
     
     # Add totals row (only on last page)
     if page_number == total_pages:
-        totals_y = table_y - 20 - (14 * row_height)
+        totals_y = table_y - 18 - (14 * row_height)
         
         # Calculate totals
         total_proceeds = sum(t['proceeds'] for t in all_transactions)
         total_basis = sum(t['cost_basis'] for t in all_transactions)
         total_gain_loss = sum(t['gain_loss'] for t in all_transactions)
         
-        c.setFont("Helvetica-Bold", 8)
-        c.drawString(columns[0]["x"] + 2, totals_y, "TOTALS")
-        c.drawRightString(columns[3]["x"] + columns[3]["width"] - 2, totals_y, f"{total_proceeds:,.2f}")
-        c.drawRightString(columns[4]["x"] + columns[4]["width"] - 2, totals_y, f"{total_basis:,.2f}")
+        # Draw totals with bold font
+        c.setFont("Helvetica-Bold", 7)
+        c.drawString(columns[0]["x"] + 3, totals_y, "TOTALS")
+        c.drawRightString(columns[3]["x"] + columns[3]["width"] - 3, totals_y, f"{total_proceeds:,.2f}")
+        c.drawRightString(columns[4]["x"] + columns[4]["width"] - 3, totals_y, f"{total_basis:,.2f}")
         
         # Format total gain/loss
         if total_gain_loss < 0:
             total_gl_text = f"({abs(total_gain_loss):,.2f})"
         else:
             total_gl_text = f"{total_gain_loss:,.2f}"
-        c.drawRightString(columns[7]["x"] + columns[7]["width"] - 2, totals_y, total_gl_text)
+        c.drawRightString(columns[7]["x"] + columns[7]["width"] - 3, totals_y, total_gl_text)
         
         # Bold line above totals
-        c.line(left_margin, totals_y + 5, right_margin, totals_y + 5)
+        c.setLineWidth(2)
+        c.line(left_margin, totals_y + 8, right_margin, totals_y + 8)
+        c.setLineWidth(1)
     
     # Page footer
     c.setFont("Helvetica", 8)
     footer_text = f"Form 8949 ({tax_year})"
     if total_pages > 1:
         footer_text += f" - Page {page_number} of {total_pages}"
-    c.drawString(left_margin, 30, footer_text)
-    c.drawRightString(right_margin, 30, f"Generated by Bitwave - {datetime.now().strftime('%m/%d/%Y')}")
+    c.drawString(left_margin, 25, footer_text)
+    c.drawRightString(right_margin, 25, f"Generated by Bitwave - {datetime.now().strftime('%m/%d/%Y')}")
     
     c.save()
 
@@ -1192,4 +924,303 @@ def create_zip_file(pdf_files):
     return zip_buffer.getvalue()
 
 if __name__ == "__main__":
-    main()
+    main()import streamlit as st
+import pandas as pd
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+import io
+import zipfile
+from datetime import datetime
+import re
+import requests
+import PyPDF2
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+def main():
+    st.set_page_config(
+        page_title="Bitwave Actions to Form 8949 Converter",
+        page_icon="₿",
+        layout="wide"
+    )
+    
+    # Custom CSS for Bitwave styling and centering
+    st.markdown("""
+    <style>
+    /* Bitwave design system colors */
+    :root {
+        --bitwave-blue: #1B9CFC;
+        --bitwave-green: #00D2B8;
+        --bitwave-dark: #1a1a1a;
+        --bitwave-gray: #6b7280;
+        --bitwave-light-gray: #f8fafc;
+        --bitwave-border: #e5e7eb;
+    }
+    
+    /* Global font improvements */
+    .stApp {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    /* Header styling - more subtle like Bitwave */
+    .main-header {
+        background: linear-gradient(135deg, #1a1a1a 0%, #2d3748 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 2.5rem 2rem;
+        margin-bottom: 3rem;
+        text-align: center;
+    }
+    
+    .main-header h1 {
+        color: white !important;
+        font-size: 2.25rem;
+        font-weight: 600;
+        margin: 0;
+        letter-spacing: -0.025em;
+    }
+    
+    .bitwave-logo {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-right: 1rem;
+        background: linear-gradient(45deg, var(--bitwave-blue), var(--bitwave-green));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -0.02em;
+    }
+    
+    /* Center all step containers with Bitwave spacing */
+    .step-container {
+        display: flex;
+        justify-content: center;
+        margin: 4rem 0;
+        padding: 0 1rem;
+    }
+    
+    /* Remove any remaining step-content styling that might create boxes */
+    .step-content {
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+    }
+    
+    /* Step headers - Bitwave style */
+    .step-header {
+        color: var(--bitwave-dark) !important;
+        font-size: 1.75rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        text-align: center;
+        letter-spacing: -0.025em;
+        border-bottom: 2px solid var(--bitwave-green);
+        padding-bottom: 0.75rem;
+        display: inline-block;
+        width: auto;
+    }
+    
+    /* Bitwave-style buttons */
+    .stButton > button {
+        background: linear-gradient(135deg, var(--bitwave-blue) 0%, var(--bitwave-green) 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 0.75rem 2rem;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+        letter-spacing: -0.025em;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(27, 156, 252, 0.25);
+    }
+    
+    /* Info and success boxes - Bitwave style */
+    .stInfo {
+        background: var(--bitwave-light-gray);
+        border: 1px solid var(--bitwave-border);
+        border-left: 4px solid var(--bitwave-blue);
+        border-radius: 8px;
+        padding: 1rem;
+    }
+    
+    .stSuccess {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-left: 4px solid var(--bitwave-green);
+        border-radius: 8px;
+        padding: 1rem;
+    }
+    
+    /* Form elements styling */
+    .stSelectbox, .stFileUploader, .stRadio {
+        margin: 1rem 0;
+    }
+    
+    .stSelectbox label, .stFileUploader label, .stRadio label {
+        color: var(--bitwave-dark) !important;
+        font-weight: 500;
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Metrics styling */
+    [data-testid="metric-container"] {
+        background: var(--bitwave-light-gray);
+        border: 1px solid var(--bitwave-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+    }
+    
+    [data-testid="metric-container"] [data-testid="metric-value"] {
+        color: var(--bitwave-dark);
+        font-weight: 600;
+    }
+    
+    /* Sidebar styling - cleaner */
+    .stSidebar {
+        background: var(--bitwave-light-gray);
+        border-right: 1px solid var(--bitwave-border);
+    }
+    
+    .stSidebar .stSelectbox label {
+        font-size: 0.9rem !important;
+        color: var(--bitwave-dark) !important;
+        font-weight: 500;
+    }
+    
+    .stSidebar .stColumns {
+        gap: 0 !important;
+    }
+    
+    .stSidebar .stColumns > div {
+        padding: 0 !important;
+    }
+    
+    .stSidebar span[title] {
+        cursor: help;
+        color: var(--bitwave-gray);
+        font-size: 0.875rem;
+        float: right;
+        margin-top: 1px;
+    }
+    
+    .stSidebar span[title]:hover {
+        color: var(--bitwave-blue);
+    }
+    
+    .stSidebar .stMarkdown h2 {
+        font-size: 1.25rem !important;
+        font-weight: 600 !important;
+        color: var(--bitwave-dark) !important;
+        margin-bottom: 1.5rem !important;
+    }
+    
+    .stSidebar .stMarkdown strong {
+        color: var(--bitwave-dark) !important;
+        font-size: 0.9rem !important;
+        font-weight: 500 !important;
+        margin-bottom: 0 !important;
+    }
+    
+    .stSidebar .stMarkdown {
+        margin-bottom: 0.1rem !important;
+    }
+    
+    .stSidebar .stSelectbox {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .stSidebar .stSelectbox > div {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .stSidebar .stTextInput {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .stSidebar .stTextInput > div {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    /* Fix gaps in main content area */
+    .stSelectbox {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .stSelectbox > div {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .stSelectbox > div > div {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    /* Content descriptions */
+    .content-description {
+        color: var(--bitwave-gray);
+        font-size: 1.125rem;
+        line-height: 1.6;
+        text-align: center;
+        margin: 2rem 0;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    
+    /* Expander styling */
+    .stExpander {
+        border: 1px solid var(--bitwave-border);
+        border-radius: 8px;
+        margin: 1.5rem 0;
+    }
+    
+    /* File uploader fixes */
+    .stFileUploader > div {
+        text-align: center !important;
+    }
+    
+    .stFileUploader [data-testid="stFileUploadDropzone"] {
+        border: 2px dashed var(--bitwave-border);
+        border-radius: 12px;
+        background: var(--bitwave-light-gray);
+        padding: 2rem;
+        text-align: center;
+    }
+    
+    .stFileUploader [data-testid="stFileUploadDropzone"]:hover {
+        border-color: var(--bitwave-blue);
+        background: #f0f9ff;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Header with Bitwave branding
+    st.markdown("""
+    <div style="display: flex; justify-content: center; margin: 2rem 0;">
+        <div style="max-width: 900px; width: 100%;">
+            <div class="main-header">
+                <div class="bitwave-logo">BITWAVE</div>
+                <h1>Actions to Form 8949 Converter</h1>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Centered content container
+    col_desc1, col_desc2, col_desc
