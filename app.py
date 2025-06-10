@@ -181,6 +181,22 @@ def main():
         word-wrap: break-word !important;
     }
     
+    /* Sidebar markdown formatting */
+    .stSidebar .stMarkdown {
+        margin-bottom: 0.5rem !important;
+    }
+    
+    .stSidebar .stMarkdown h2 {
+        font-size: 1.3rem !important;
+        margin-bottom: 1rem !important;
+        color: var(--bitwave-dark) !important;
+    }
+    
+    .stSidebar .stMarkdown strong {
+        color: var(--bitwave-dark) !important;
+        font-size: 0.95rem !important;
+    }
+    
     /* Fix sidebar header */
     .stSidebar h2 {
         font-size: 1.2rem !important;
@@ -230,11 +246,12 @@ def main():
         """)
     
     # Sidebar for configuration
-    st.sidebar.header("Configuration")
+    st.sidebar.markdown("## Configuration")
     
-    # Form type selection
+    # Form type selection with clean formatting
+    st.sidebar.markdown("**Form 8949 Type:**")
     form_type = st.sidebar.selectbox(
-        "Form 8949 Type:",
+        "",  # Empty label since we're using markdown above
         [
             "Part I - Short-term (Box B) - Basis NOT reported", 
             "Part I - Short-term (Box A) - Basis reported",
@@ -248,7 +265,8 @@ def main():
     )
     
     # Taxpayer information for PDF generation
-    st.sidebar.subheader("Taxpayer Information")
+    st.sidebar.markdown("---")  # Add separator line
+    st.sidebar.markdown("**Taxpayer Information**")
     taxpayer_name = st.sidebar.text_input("Full Name", placeholder="Jenny L")
     taxpayer_ssn = st.sidebar.text_input("Social Security Number", placeholder="XXX-XX-XXXX")
     
