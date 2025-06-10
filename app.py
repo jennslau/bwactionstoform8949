@@ -11,30 +11,35 @@ import re
 
 def main():
     st.set_page_config(
-        page_title="Crypto Actions to Form 8949 Converter",
+        page_title="Bitwave Actions to Form 8949 Converter",
         page_icon="₿",
         layout="wide"
     )
     
-    st.title("₿ Crypto Actions to Form 8949 Converter")
-    st.markdown("Upload your crypto actions/transactions report and get either a tax software CSV or completed Form 8949 PDF.")
+    st.title("₿ Bitwave Actions to Form 8949 Converter")
+    st.markdown("Upload your Bitwave actions report and get either a tax software CSV or completed Form 8949 PDF.")
     
     # Information section
     with st.expander("ℹ️ How This Works", expanded=False):
         st.markdown("""
-        **This tool does everything for you:**
+        **This tool is specifically designed for Bitwave actions reports:**
         
-        1. **Upload** your crypto actions report (CSV from exchanges, tax software, etc.)
-        2. **Extract** and convert transaction data automatically
-        3. **Choose** your output:
+        1. **Upload** your Bitwave actions CSV export
+        2. **Automatically extracts** sell transactions with proper lot matching
+        3. **Maps acquisition dates** using lot IDs from buy transactions
+        4. **Validates calculations** against Bitwave's short/long-term gain/loss columns
+        5. **Choose output:**
            - **CSV file** → Upload to TurboTax, TaxAct, FreeTaxUSA, etc.
            - **PDF file** → Print and mail directly to IRS
         
-        **Supported formats:**
-        - Exchange export files (Coinbase, Binance, etc.)
-        - Tax software reports
-        - Custom transaction files
-        - Actions reports (like yours)
+        **Required Bitwave columns:**
+        - `action` (buy/sell)
+        - `asset` (BTC, ETH, etc.)
+        - `timestamp` (transaction date)
+        - `lotId` (for matching buy/sell pairs)
+        - `proceeds` (column R)
+        - `costBasisRelieved` (column W)
+        - `shortTermGainLoss` and `longTermGainLoss` (for validation)
         """)
     
     # Sidebar for configuration
@@ -44,14 +49,14 @@ def main():
     form_type = st.sidebar.selectbox(
         "Form 8949 Type:",
         [
-            "Part I - Short-term (Box A) - Basis reported to IRS",
             "Part I - Short-term (Box B) - Basis NOT reported to IRS", 
+            "Part I - Short-term (Box A) - Basis reported to IRS",
             "Part I - Short-term (Box C) - Various situations",
-            "Part II - Long-term (Box A) - Basis reported to IRS",
             "Part II - Long-term (Box B) - Basis NOT reported to IRS",
+            "Part II - Long-term (Box A) - Basis reported to IRS",
             "Part II - Long-term (Box C) - Various situations"
         ],
-        index=1,  # Default to most common for crypto
+        index=0,  # Default to most common for crypto
         help="Most crypto transactions use 'Part I (Box B)' - short-term, basis not reported"
     )
     
@@ -81,68 +86,110 @@ def main():
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.header("Step 2: Upload Your Actions Report")
+        st.header("Step 2: Upload Bitwave Actions Report")
         
         uploaded_file = st.file_uploader(
-            "Choose your crypto actions/transactions file",
-            type=["csv", "xlsx", "xls"],
-            help="Upload your crypto transaction report from exchanges, tax software, or accounting systems"
+            "Choose your Bitwave actions CSV file",
+            type=["csv"],
+            help="Upload the CSV export from your Bitwave actions report"
         )
         
         if uploaded_file is not None:
             try:
-                # Read the file
-                if uploaded_file.name.endswith('.csv'):
-                    df_raw = pd.read_csv(uploaded_file)
-                else:
-                    df_raw = pd.read_excel(uploaded_file)
+                # Read the Bitwave actions file
+                df_raw = pd.read_csv(uploaded_file)
                 
-                st.success(f"✅ File uploaded successfully! Found {len(df_raw)} rows.")
+                st.success(f"✅ Bitwave actions file uploaded! Found {len(df_raw)} total actions.")
                 
-                # Show raw data preview
-                with st.expander("📋 Raw Data Preview", expanded=False):
-                    st.dataframe(df_raw.head(10))
+                # Validate it's a Bitwave file
+                required_columns = ['action', 'asset', 'timestamp', 'lotId', ' proceeds ', ' costBasisRelieved ']
+                missing_columns = [col for col in required_columns if col not in df_raw.columns]
                 
-                # Auto-detect and extract transactions
-                transactions = extract_crypto_transactions(df_raw, tax_year)
-                
-                if transactions:
-                    st.success(f"🎯 Extracted {len(transactions)} transactions for {tax_year}!")
-                    
-                    # Show extracted transactions
-                    st.subheader(f"{tax_year} Crypto Transactions")
-                    
-                    # Create display dataframe
-                    display_df = pd.DataFrame(transactions)
-                    display_df['Gain/Loss'] = display_df['Proceeds'] - display_df['Cost_Basis']
-                    
-                    # Format for display
-                    display_df['Proceeds'] = display_df['Proceeds'].apply(lambda x: f"${x:,.2f}")
-                    display_df['Cost_Basis'] = display_df['Cost_Basis'].apply(lambda x: f"${x:,.2f}")
-                    display_df['Gain/Loss'] = display_df['Gain/Loss'].apply(lambda x: f"${x:,.2f}")
-                    
-                    st.dataframe(display_df)
-                    
-                    # Show summary
-                    total_proceeds = sum(t['Proceeds'] for t in transactions)
-                    total_basis = sum(t['Cost_Basis'] for t in transactions)
-                    total_gain_loss = total_proceeds - total_basis
-                    
-                    col_a, col_b, col_c = st.columns(3)
-                    with col_a:
-                        st.metric("Total Proceeds", f"${total_proceeds:,.2f}")
-                    with col_b:
-                        st.metric("Total Cost Basis", f"${total_basis:,.2f}")
-                    with col_c:
-                        color = "normal" if total_gain_loss >= 0 else "inverse"
-                        st.metric("Net Gain/Loss", f"${total_gain_loss:,.2f}")
-                
-                else:
-                    st.error("❌ No crypto transactions found for the selected year. Please check your file format.")
+                if missing_columns:
+                    st.error(f"❌ This doesn't appear to be a valid Bitwave actions report.")
+                    st.error(f"Missing columns: {', '.join(missing_columns)}")
+                    st.info("Please ensure you've uploaded the correct Bitwave actions CSV export.")
                     transactions = None
+                else:
+                    # Extract transactions using Bitwave-specific logic
+                    transactions = extract_bitwave_transactions(df_raw, tax_year)
+                    
+                    if transactions:
+                        st.success(f"🎯 Extracted {len(transactions)} sell transactions for {tax_year}!")
+                        
+                        # Show extracted transactions summary
+                        st.subheader(f"{tax_year} Crypto Sales Summary")
+                        
+                        # Create summary by asset
+                        asset_summary = {}
+                        for txn in transactions:
+                            asset = txn['asset']
+                            if asset not in asset_summary:
+                                asset_summary[asset] = {
+                                    'count': 0,
+                                    'proceeds': 0,
+                                    'cost_basis': 0,
+                                    'gain_loss': 0
+                                }
+                            asset_summary[asset]['count'] += 1
+                            asset_summary[asset]['proceeds'] += txn['proceeds']
+                            asset_summary[asset]['cost_basis'] += txn['cost_basis']
+                            asset_summary[asset]['gain_loss'] += txn['gain_loss']
+                        
+                        # Display asset summary
+                        summary_data = []
+                        for asset, data in asset_summary.items():
+                            summary_data.append({
+                                'Asset': asset,
+                                'Transactions': data['count'],
+                                'Total Proceeds': f"${data['proceeds']:,.2f}",
+                                'Total Cost Basis': f"${data['cost_basis']:,.2f}",
+                                'Net Gain/Loss': f"${data['gain_loss']:,.2f}"
+                            })
+                        
+                        summary_df = pd.DataFrame(summary_data)
+                        st.dataframe(summary_df, use_container_width=True)
+                        
+                        # Show overall totals
+                        total_proceeds = sum(t['proceeds'] for t in transactions)
+                        total_basis = sum(t['cost_basis'] for t in transactions)
+                        total_gain_loss = sum(t['gain_loss'] for t in transactions)
+                        
+                        col_a, col_b, col_c = st.columns(3)
+                        with col_a:
+                            st.metric("Total Proceeds", f"${total_proceeds:,.2f}")
+                        with col_b:
+                            st.metric("Total Cost Basis", f"${total_basis:,.2f}")
+                        with col_c:
+                            st.metric("Net Gain/Loss", f"${total_gain_loss:,.2f}")
+                        
+                        # Show detailed transactions in expander
+                        with st.expander(f"📋 View All {len(transactions)} Transactions", expanded=False):
+                            display_transactions = []
+                            for i, txn in enumerate(transactions[:100]):  # Limit display to first 100
+                                display_transactions.append({
+                                    '#': i + 1,
+                                    'Asset': txn['asset'],
+                                    'Sell Date': txn['date_sold'].strftime('%m/%d/%Y'),
+                                    'Buy Date': txn['date_acquired'].strftime('%m/%d/%Y') if txn['date_acquired'] else 'Unknown',
+                                    'Proceeds': f"${txn['proceeds']:.2f}",
+                                    'Cost Basis': f"${txn['cost_basis']:.2f}",
+                                    'Gain/Loss': f"${txn['gain_loss']:.2f}",
+                                    'Term': 'Short' if txn['is_short_term'] else 'Long'
+                                })
+                            
+                            txn_df = pd.DataFrame(display_transactions)
+                            st.dataframe(txn_df, use_container_width=True)
+                            
+                            if len(transactions) > 100:
+                                st.info(f"Showing first 100 transactions. Total: {len(transactions)}")
+                    
+                    else:
+                        st.error(f"❌ No sell transactions found for {tax_year}. Please check your selected year.")
+                        transactions = None
                 
             except Exception as e:
-                st.error(f"Error reading file: {str(e)}")
+                st.error(f"Error reading Bitwave file: {str(e)}")
                 transactions = None
         else:
             transactions = None
@@ -161,6 +208,13 @@ def main():
                 help="Choose based on how you plan to file your taxes"
             )
             
+            # Show term breakdown
+            short_term_count = sum(1 for t in transactions if t['is_short_term'])
+            long_term_count = len(transactions) - short_term_count
+            
+            if short_term_count > 0 and long_term_count > 0:
+                st.warning(f"⚠️ You have both short-term ({short_term_count}) and long-term ({long_term_count}) transactions. You may need separate Form 8949s for each.")
+            
             # Generate button
             if st.button("🚀 Generate Files", type="primary"):
                 try:
@@ -168,7 +222,7 @@ def main():
                         # Generate CSV for tax software
                         csv_data = generate_tax_software_csv(transactions, tax_year)
                         
-                        filename = f"form_8949_{tax_year}_crypto_transactions.csv"
+                        filename = f"form_8949_{tax_year}_bitwave_transactions.csv"
                         st.download_button(
                             label="📥 Download CSV for Tax Software",
                             data=csv_data,
@@ -205,13 +259,37 @@ def main():
                         if not taxpayer_name or not taxpayer_ssn:
                             st.error("⚠️ Please fill in your taxpayer information in the sidebar to generate a PDF.")
                         else:
-                            pdf_files = generate_form_8949_pdf(
-                                transactions, 
-                                form_type, 
-                                taxpayer_name, 
-                                taxpayer_ssn, 
-                                tax_year
-                            )
+                            # Split by term type if needed
+                            short_term_txns = [t for t in transactions if t['is_short_term']]
+                            long_term_txns = [t for t in transactions if not t['is_short_term']]
+                            
+                            pdf_files = []
+                            
+                            # Generate short-term PDF if applicable
+                            if short_term_txns:
+                                short_form_type = form_type.replace("Part II", "Part I").replace("Long-term", "Short-term")
+                                short_pdfs = generate_form_8949_pdf(
+                                    short_term_txns, 
+                                    short_form_type, 
+                                    taxpayer_name, 
+                                    taxpayer_ssn, 
+                                    tax_year,
+                                    "Short-term"
+                                )
+                                pdf_files.extend(short_pdfs)
+                            
+                            # Generate long-term PDF if applicable
+                            if long_term_txns:
+                                long_form_type = form_type.replace("Part I", "Part II").replace("Short-term", "Long-term")
+                                long_pdfs = generate_form_8949_pdf(
+                                    long_term_txns, 
+                                    long_form_type, 
+                                    taxpayer_name, 
+                                    taxpayer_ssn, 
+                                    tax_year,
+                                    "Long-term"
+                                )
+                                pdf_files.extend(long_pdfs)
                             
                             if len(pdf_files) == 1:
                                 # Single PDF
@@ -256,212 +334,172 @@ def main():
                     st.error(f"Error generating files: {str(e)}")
         
         else:
-            st.info("👆 Please upload your crypto actions file first.")
+            st.info("👆 Please upload your Bitwave actions file first.")
             
             # Show sample file format
-            with st.expander("📋 Sample File Formats"):
+            with st.expander("📋 Bitwave Actions Report Format"):
                 st.markdown("""
-                **Your file should contain transaction data like:**
+                **Your Bitwave actions CSV should contain these columns:**
                 
-                **Option A - Actions Report (like yours):**
                 ```
-                Row Labels, Sum of costBasisRelieved, Sum of proceeds
-                2022,,
-                BTC, 4287538.11, 4286732.78
-                ETH, 130607.70, 127257.06
+                action, asset, timestamp, lotId, proceeds, costBasisRelieved, 
+                shortTermGainLoss, longTermGainLoss, costBasisAcquired, ...
                 ```
                 
-                **Option B - Transaction List:**
-                ```
-                Asset, Date, Type, Amount, Price, Total
-                BTC, 2022-03-15, SELL, 1.5, 45000, 67500
-                ETH, 2022-06-20, SELL, 10, 1800, 18000
-                ```
+                **Key fields used:**
+                - **action:** "buy" or "sell"
+                - **asset:** "BTC", "ETH", "ADA", etc.
+                - **timestamp:** Transaction date/time
+                - **lotId:** Unique identifier linking buy/sell transactions
+                - **proceeds:** Sales proceeds (column R)
+                - **costBasisRelieved:** Cost basis for this sale (column W)
+                - **shortTermGainLoss/longTermGainLoss:** For validation
                 
-                **Option C - Exchange Export:**
-                ```
-                Date, Pair, Side, Amount, Price, Fee, Total
-                2022-01-15, BTC/USD, SELL, 0.5, 42000, 25, 20975
-                ```
+                **To export from Bitwave:**
+                1. Go to your Actions report
+                2. Set date range for desired tax year
+                3. Export as CSV
+                4. Upload the CSV file here
                 """)
 
-def extract_crypto_transactions(df, target_year):
-    """Extract crypto transactions from various file formats"""
-    transactions = []
+def extract_bitwave_transactions(df, target_year):
+    """Extract and process transactions from Bitwave actions report"""
     
-    # Method 1: Actions report format (like Jenny's file)
-    if 'Row Labels' in df.columns:
-        transactions = extract_from_actions_report(df, target_year)
+    # Create lot mapping from buy transactions
+    lot_map = {}
+    buy_transactions = df[df['action'] == 'buy'].copy()
     
-    # Method 2: Standard transaction format
-    elif any(col.lower() in ['date', 'timestamp', 'time'] for col in df.columns):
-        transactions = extract_from_transaction_list(df, target_year)
+    for _, row in buy_transactions.iterrows():
+        if pd.notna(row['lotId']):
+            lot_map[row['lotId']] = {
+                'buy_date': pd.to_datetime(row['timestamp']),
+                'asset': row['asset'],
+                'cost_basis_acquired': clean_currency_value(row.get(' costBasisAcquired ', 0))
+            }
     
-    # Method 3: Exchange export format
-    elif any(col.lower() in ['pair', 'symbol', 'asset'] for col in df.columns):
-        transactions = extract_from_exchange_export(df, target_year)
+    # Process sell transactions
+    sell_transactions = df[df['action'] == 'sell'].copy()
+    form8949_transactions = []
     
-    return transactions
-
-def extract_from_actions_report(df, target_year):
-    """Extract from actions report format (like Jenny's file)"""
-    transactions = []
-    current_year = None
-    
-    # Find cost basis and proceeds columns
-    cost_col = None
-    proceeds_col = None
-    
-    for col in df.columns:
-        if 'cost' in col.lower() or 'basis' in col.lower():
-            cost_col = col
-        elif 'proceed' in col.lower() or 'sales' in col.lower():
-            proceeds_col = col
-    
-    if not cost_col or not proceeds_col:
-        return transactions
-    
-    for _, row in df.iterrows():
-        row_label = row.get('Row Labels', '')
-        cost_basis = row.get(cost_col, '')
-        proceeds = row.get(proceeds_col, '')
-        
-        # Check if this is a year row
-        if isinstance(row_label, (int, float)) and 2015 <= row_label <= 2030:
-            current_year = int(row_label)
-        
-        # Check if this is a transaction row for our target year
-        elif (current_year == target_year and 
-              isinstance(row_label, str) and 
-              row_label.strip() and
-              cost_basis and proceeds and
-              'total' not in row_label.lower() and
-              'grand' not in row_label.lower()):
-            
-            try:
-                # Clean and parse amounts
-                clean_cost = clean_currency(cost_basis)
-                clean_proceeds = clean_currency(proceeds)
-                
-                if clean_cost > 0 or clean_proceeds > 0:
-                    transactions.append({
-                        'Description': f"{row_label.strip()} cryptocurrency",
-                        'Date_Acquired': f"01/01/{target_year}",
-                        'Date_Sold': f"12/31/{target_year}",
-                        'Proceeds': clean_proceeds,
-                        'Cost_Basis': clean_cost,
-                        'Asset': row_label.strip()
-                    })
-            except:
-                continue
-    
-    return transactions
-
-def extract_from_transaction_list(df, target_year):
-    """Extract from standard transaction list format"""
-    transactions = []
-    
-    # Find relevant columns
-    date_col = find_column(df, ['date', 'timestamp', 'time'])
-    asset_col = find_column(df, ['asset', 'symbol', 'coin', 'currency', 'crypto'])
-    amount_col = find_column(df, ['amount', 'quantity', 'volume'])
-    price_col = find_column(df, ['price', 'rate', 'value'])
-    total_col = find_column(df, ['total', 'proceeds', 'usd_value'])
-    cost_col = find_column(df, ['cost', 'basis', 'cost_basis'])
-    
-    if not date_col or not asset_col:
-        return transactions
-    
-    for _, row in df.iterrows():
+    for _, row in sell_transactions.iterrows():
         try:
-            # Parse date
-            date_str = str(row[date_col])
-            if str(target_year) in date_str:
-                asset = str(row[asset_col]).strip()
-                
-                # Calculate proceeds and cost basis
-                proceeds = 0
-                cost_basis = 0
-                
-                if total_col:
-                    proceeds = clean_currency(row[total_col])
-                elif amount_col and price_col:
-                    amount = clean_currency(row[amount_col])
-                    price = clean_currency(row[price_col])
-                    proceeds = amount * price
-                
-                if cost_col:
-                    cost_basis = clean_currency(row[cost_col])
+            # Parse sell date
+            sell_date = pd.to_datetime(row['timestamp'])
+            
+            # Filter by target year
+            if sell_date.year != target_year:
+                continue
+            
+            # Get lot information
+            lot_id = row['lotId']
+            lot_info = lot_map.get(lot_id, {})
+            buy_date = lot_info.get('buy_date')
+            
+            # Extract monetary values
+            proceeds = clean_currency_value(row.get(' proceeds ', 0))
+            cost_basis = clean_currency_value(row.get(' costBasisRelieved ', 0))
+            
+            # Skip if no meaningful transaction
+            if proceeds <= 0 and cost_basis <= 0:
+                continue
+            
+            # Parse gain/loss values for validation
+            short_term_gl = clean_currency_value(row.get(' shortTermGainLoss ', 0))
+            long_term_gl = clean_currency_value(row.get(' longTermGainLoss ', 0))
+            
+            # Calculate gain/loss
+            calculated_gain_loss = proceeds - cost_basis
+            reported_gain_loss = short_term_gl + long_term_gl
+            
+            # Determine if short-term or long-term
+            is_short_term = abs(short_term_gl) > 0.01
+            is_long_term = abs(long_term_gl) > 0.01
+            
+            # If buy date is available, calculate holding period
+            if buy_date and sell_date:
+                holding_days = (sell_date - buy_date).days
+                # Override with actual holding period if available
+                if holding_days <= 365:
+                    is_short_term = True
+                    is_long_term = False
                 else:
-                    cost_basis = proceeds * 0.9  # Estimate if not provided
-                
-                if proceeds > 0:
-                    transactions.append({
-                        'Description': f"{asset} cryptocurrency",
-                        'Date_Acquired': f"01/01/{target_year}",
-                        'Date_Sold': date_str[:10] if len(date_str) >= 10 else f"12/31/{target_year}",
-                        'Proceeds': proceeds,
-                        'Cost_Basis': cost_basis,
-                        'Asset': asset
-                    })
-        except:
+                    is_short_term = False
+                    is_long_term = True
+            
+            # Create transaction record
+            transaction = {
+                'asset': row['asset'],
+                'description': f"{row['asset']} cryptocurrency",
+                'date_acquired': buy_date or sell_date,  # Fallback to sell date if buy not found
+                'date_sold': sell_date,
+                'proceeds': proceeds,
+                'cost_basis': cost_basis,
+                'gain_loss': calculated_gain_loss,
+                'reported_gain_loss': reported_gain_loss,
+                'short_term_gain_loss': short_term_gl,
+                'long_term_gain_loss': long_term_gl,
+                'is_short_term': is_short_term,
+                'is_long_term': is_long_term,
+                'lot_id': lot_id
+            }
+            
+            form8949_transactions.append(transaction)
+            
+        except Exception as e:
+            # Skip problematic rows
             continue
     
-    return transactions
+    return form8949_transactions
 
-def extract_from_exchange_export(df, target_year):
-    """Extract from exchange export format"""
-    # Similar logic to transaction list but with exchange-specific columns
-    return extract_from_transaction_list(df, target_year)
-
-def find_column(df, possible_names):
-    """Find column by possible names"""
-    for col in df.columns:
-        for name in possible_names:
-            if name.lower() in col.lower():
-                return col
-    return None
-
-def clean_currency(value):
-    """Clean currency values"""
-    if pd.isna(value) or value == '':
+def clean_currency_value(value):
+    """Clean and parse currency values from Bitwave format"""
+    if pd.isna(value) or value == '' or value == '-':
         return 0.0
     
     # Convert to string and clean
     str_val = str(value).strip()
-    str_val = re.sub(r'[,$"\s]', '', str_val)
-    str_val = str_val.replace('(', '-').replace(')', '')
+    
+    # Handle parentheses for negative values
+    is_negative = False
+    if '(' in str_val and ')' in str_val:
+        is_negative = True
+        str_val = str_val.replace('(', '').replace(')', '')
+    
+    # Remove currency symbols, commas, and spaces
+    str_val = re.sub(r'[,$\s]', '', str_val)
     
     try:
-        return float(str_val)
+        result = float(str_val)
+        return -result if is_negative else result
     except:
         return 0.0
 
 def generate_tax_software_csv(transactions, tax_year):
     """Generate CSV for tax software import"""
     
-    # Create Form 8949 compatible format
-    csv_data = []
-    csv_data.append("Description,Date Acquired,Date Sold,Sales Price,Cost Basis,Gain/Loss,Adjustment Code,Adjustment Amount")
+    csv_lines = []
+    csv_lines.append("Description,Date Acquired,Date Sold,Sales Price,Cost Basis,Gain/Loss,Adjustment Code,Adjustment Amount")
     
     for transaction in transactions:
-        gain_loss = transaction['Proceeds'] - transaction['Cost_Basis']
+        # Format dates
+        date_acquired = transaction['date_acquired'].strftime('%m/%d/%Y') if transaction['date_acquired'] else '01/01/2020'
+        date_sold = transaction['date_sold'].strftime('%m/%d/%Y')
         
         row = [
-            transaction['Description'],
-            transaction['Date_Acquired'],
-            transaction['Date_Sold'],
-            f"{transaction['Proceeds']:.2f}",
-            f"{transaction['Cost_Basis']:.2f}",
-            f"{gain_loss:.2f}",
+            transaction['description'],
+            date_acquired,
+            date_sold,
+            f"{transaction['proceeds']:.2f}",
+            f"{transaction['cost_basis']:.2f}",
+            f"{transaction['gain_loss']:.2f}",
             "",  # Adjustment Code
             "0.00"  # Adjustment Amount
         ]
-        csv_data.append(",".join(row))
+        csv_lines.append(",".join(row))
     
-    return "\n".join(csv_data)
+    return "\n".join(csv_lines)
 
-def generate_form_8949_pdf(transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year):
+def generate_form_8949_pdf(transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, term_type=""):
     """Generate completed Form 8949 PDF"""
     pdf_files = []
     
@@ -476,13 +514,14 @@ def generate_form_8949_pdf(transactions, form_type, taxpayer_name, taxpayer_ssn,
         
         # Create PDF for this page
         buffer = io.BytesIO()
-        create_form_8949_page(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_num + 1, total_pages)
+        create_form_8949_page(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_num + 1, total_pages, transactions)
         
         # Generate filename
+        term_suffix = f"_{term_type}" if term_type else ""
         if total_pages == 1:
-            filename = f"Form_8949_{tax_year}_{taxpayer_name.replace(' ', '_')}.pdf"
+            filename = f"Form_8949_{tax_year}{term_suffix}_{taxpayer_name.replace(' ', '_')}.pdf"
         else:
-            filename = f"Form_8949_{tax_year}_{taxpayer_name.replace(' ', '_')}_Page_{page_num + 1}.pdf"
+            filename = f"Form_8949_{tax_year}{term_suffix}_{taxpayer_name.replace(' ', '_')}_Page_{page_num + 1}.pdf"
         
         pdf_files.append({
             'filename': filename,
@@ -491,7 +530,7 @@ def generate_form_8949_pdf(transactions, form_type, taxpayer_name, taxpayer_ssn,
     
     return pdf_files
 
-def create_form_8949_page(buffer, transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages):
+def create_form_8949_page(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions):
     """Create a single Form 8949 PDF page"""
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
@@ -503,50 +542,58 @@ def create_form_8949_page(buffer, transactions, form_type, taxpayer_name, taxpay
     c.drawString(150, height - 50, "Sales and Other Dispositions of Capital Assets")
     c.drawRightString(width - 50, height - 50, f"{tax_year}")
     
+    # Department of Treasury - Internal Revenue Service
+    c.setFont("Helvetica", 8)
+    c.drawString(150, height - 62, "Department of the Treasury - Internal Revenue Service")
+    
     # Taxpayer information
     c.setFont("Helvetica", 9)
-    c.drawString(50, height - 80, f"Name(s) shown on return: {taxpayer_name}")
-    c.drawString(50, height - 95, f"Your social security number: {taxpayer_ssn}")
+    c.drawString(50, height - 85, f"Name(s) shown on return: {taxpayer_name}")
+    c.drawString(50, height - 100, f"Your social security number: {taxpayer_ssn}")
     
     # Form type and checkboxes
-    y_pos = height - 130
+    y_pos = height - 135
     c.setFont("Helvetica-Bold", 10)
     
     if "Part I" in form_type:
         c.drawString(50, y_pos, "Part I - Short-Term Capital Gains and Losses - Generally for assets held one year or less")
+        part_text = "Short-Term"
     else:
         c.drawString(50, y_pos, "Part II - Long-Term Capital Gains and Losses - Generally for assets held more than one year")
+        part_text = "Long-Term"
     
     # Checkbox selection
     y_pos -= 25
     c.setFont("Helvetica", 9)
     
-    if "Box A" in form_type:
-        c.drawString(50, y_pos, "☑ (A) Short-term transactions reported on Form(s) 1099-B showing basis was reported to the IRS")
-        c.drawString(50, y_pos - 12, "☐ (B) Short-term transactions reported on Form(s) 1099-B showing basis was NOT reported to the IRS")
-        c.drawString(50, y_pos - 24, "☐ (C) Short-term transactions not reported to you on Form 1099-B")
-    elif "Box B" in form_type:
-        c.drawString(50, y_pos, "☐ (A) Short-term transactions reported on Form(s) 1099-B showing basis was reported to the IRS")
-        c.drawString(50, y_pos - 12, "☑ (B) Short-term transactions reported on Form(s) 1099-B showing basis was NOT reported to the IRS")
-        c.drawString(50, y_pos - 24, "☐ (C) Short-term transactions not reported to you on Form 1099-B")
-    else:  # Box C
-        c.drawString(50, y_pos, "☐ (A) Short-term transactions reported on Form(s) 1099-B showing basis was reported to the IRS")
-        c.drawString(50, y_pos - 12, "☐ (B) Short-term transactions reported on Form(s) 1099-B showing basis was NOT reported to the IRS")
-        c.drawString(50, y_pos - 24, "☑ (C) Short-term transactions not reported to you on Form 1099-B")
+    checkbox_text = [
+        "(A) Short-term transactions reported on Form(s) 1099-B showing basis was reported to the IRS",
+        "(B) Short-term transactions reported on Form(s) 1099-B showing basis was NOT reported to the IRS",  
+        "(C) Short-term transactions not reported to you on Form 1099-B"
+    ]
+    
+    if "Part II" in form_type:
+        checkbox_text = [text.replace("Short-term", "Long-term") for text in checkbox_text]
+    
+    for i, text in enumerate(checkbox_text):
+        checkbox = "☑" if (("Box A" in form_type and i == 0) or 
+                           ("Box B" in form_type and i == 1) or 
+                           ("Box C" in form_type and i == 2)) else "☐"
+        c.drawString(50, y_pos - (i * 15), f"{checkbox} {text}")
     
     # Column headers
-    y_pos = height - 200
+    y_pos = height - 220
     c.setFont("Helvetica-Bold", 8)
     
     headers = [
         ("(a) Description of property", 50),
         ("(b) Date acquired", 170),
-        ("(c) Date sold or", 235),
-        ("(d) Proceeds", 300),
-        ("(e) Cost or other", 360),
-        ("(f) Code(s)", 415),
-        ("(g) Amount of", 445),
-        ("(h) Gain or (loss)", 500)
+        ("(c) Date sold or disposed of", 235),
+        ("(d) Proceeds (sales price)", 315),
+        ("(e) Cost or other basis", 380),
+        ("(f) Code(s) from", 440),
+        ("(g) Amount of", 470),
+        ("(h) Gain or (loss)", 510)
     ]
     
     for header, x_pos in headers:
@@ -555,14 +602,12 @@ def create_form_8949_page(buffer, transactions, form_type, taxpayer_name, taxpay
     # Sub-headers
     y_pos -= 10
     c.setFont("Helvetica", 7)
-    c.drawString(235, y_pos, "disposed of")
-    c.drawString(360, y_pos, "basis")
-    c.drawString(415, y_pos, "from Form(s)")
-    c.drawString(445, y_pos, "adjustment")
-    c.drawString(500, y_pos, "Subtract column (g)")
-    c.drawString(500, y_pos - 8, "from column (d) and")
-    c.drawString(500, y_pos - 16, "combine the result")
-    c.drawString(500, y_pos - 24, "with column (e)")
+    c.drawString(440, y_pos, "Form(s) 8949")
+    c.drawString(470, y_pos, "adjustment")
+    c.drawString(510, y_pos, "Subtract column (g)")
+    c.drawString(510, y_pos - 8, "from column (d) and")
+    c.drawString(510, y_pos - 16, "combine the result")
+    c.drawString(510, y_pos - 24, "with column (e)")
     
     # Draw line under headers
     y_pos -= 30
@@ -572,49 +617,51 @@ def create_form_8949_page(buffer, transactions, form_type, taxpayer_name, taxpay
     y_pos -= 15
     c.setFont("Helvetica", 8)
     
-    for transaction in transactions:
+    for transaction in page_transactions:
         if y_pos < 150:  # Check if we need space for totals
             break
         
-        gain_loss = transaction['Proceeds'] - transaction['Cost_Basis']
+        # Format dates
+        date_acquired = transaction['date_acquired'].strftime('%m/%d/%Y') if transaction['date_acquired'] else 'VARIOUS'
+        date_sold = transaction['date_sold'].strftime('%m/%d/%Y')
         
         # Draw transaction data
-        c.drawString(50, y_pos, transaction['Description'][:30])  # Truncate if too long
-        c.drawString(170, y_pos, transaction['Date_Acquired'])
-        c.drawString(235, y_pos, transaction['Date_Sold'])
-        c.drawRightString(355, y_pos, f"{transaction['Proceeds']:,.2f}")
-        c.drawRightString(410, y_pos, f"{transaction['Cost_Basis']:,.2f}")
-        c.drawString(420, y_pos, "")  # Adjustment code (blank)
-        c.drawRightString(480, y_pos, "")  # Adjustment amount (blank)
-        c.drawRightString(545, y_pos, f"{gain_loss:,.2f}")
+        c.drawString(50, y_pos, transaction['description'][:35])  # Truncate if too long
+        c.drawString(170, y_pos, date_acquired)
+        c.drawString(235, y_pos, date_sold)
+        c.drawRightString(375, y_pos, f"{transaction['proceeds']:,.2f}")
+        c.drawRightString(435, y_pos, f"{transaction['cost_basis']:,.2f}")
+        c.drawString(445, y_pos, "")  # Adjustment code (blank)
+        c.drawRightString(505, y_pos, "")  # Adjustment amount (blank)
+        c.drawRightString(555, y_pos, f"{transaction['gain_loss']:,.2f}")
         
         y_pos -= 18
     
-    # Totals section
-    if page_number == total_pages:  # Only show totals on last page
-        y_pos = 120
+    # Totals section (only on last page)
+    if page_number == total_pages:
+        y_pos = 130
         c.setFont("Helvetica-Bold", 9)
-        c.drawString(50, y_pos, f"Totals for all {len(transactions)} transactions:")
+        c.drawString(50, y_pos, f"Totals for all transactions:")
         
-        total_proceeds = sum(t['Proceeds'] for t in transactions)
-        total_basis = sum(t['Cost_Basis'] for t in transactions)
-        total_gain_loss = total_proceeds - total_basis
+        total_proceeds = sum(t['proceeds'] for t in all_transactions)
+        total_basis = sum(t['cost_basis'] for t in all_transactions)
+        total_gain_loss = sum(t['gain_loss'] for t in all_transactions)
         
-        c.drawRightString(355, y_pos, f"{total_proceeds:,.2f}")
-        c.drawRightString(410, y_pos, f"{total_basis:,.2f}")
-        c.drawRightString(545, y_pos, f"{total_gain_loss:,.2f}")
+        c.drawRightString(375, y_pos, f"{total_proceeds:,.2f}")
+        c.drawRightString(435, y_pos, f"{total_basis:,.2f}")
+        c.drawRightString(555, y_pos, f"{total_gain_loss:,.2f}")
         
         # Draw line above totals
-        c.line(300, y_pos + 5, 545, y_pos + 5)
+        c.line(315, y_pos + 5, 555, y_pos + 5)
     
     # Page footer
     c.setFont("Helvetica", 8)
     if total_pages > 1:
-        c.drawString(50, 30, f"Form 8949 ({tax_year}) - Page {page_number} of {total_pages}")
+        c.drawString(50, 40, f"Form 8949 ({tax_year}) - Page {page_number} of {total_pages}")
     else:
-        c.drawString(50, 30, f"Form 8949 ({tax_year})")
+        c.drawString(50, 40, f"Form 8949 ({tax_year})")
     
-    c.drawRightString(width - 50, 30, f"Generated: {datetime.now().strftime('%m/%d/%Y')}")
+    c.drawRightString(width - 50, 40, f"Generated from Bitwave: {datetime.now().strftime('%m/%d/%Y')}")
     
     c.save()
 
