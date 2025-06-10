@@ -221,6 +221,32 @@ def main():
         padding-top: 0 !important;
     }
     
+    .stSidebar .stTextInput {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .stSidebar .stTextInput > div {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    /* Fix gaps in main content area */
+    .stSelectbox {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .stSelectbox > div {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .stSelectbox > div > div {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
     /* Content descriptions */
     .content-description {
         color: var(--bitwave-gray);
