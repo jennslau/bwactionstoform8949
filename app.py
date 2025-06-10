@@ -330,7 +330,6 @@ def main():
     
     # Step 1: Tax Year Selection (Centered)
     st.markdown('<div class="step-container">', unsafe_allow_html=True)
-    st.markdown('<div class="step-content">', unsafe_allow_html=True)
     st.markdown('<div style="text-align: center;"><h2 class="step-header">🗓️ Step 1: Select Tax Year</h2></div>', unsafe_allow_html=True)
     
     # Centered tax year selection with proper labels
@@ -351,13 +350,11 @@ def main():
         st.info(f"📅 Processing transactions for tax year **{tax_year}**")
     
     st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown("---")
     
     # Step 2: Upload File (Centered)
     st.markdown('<div class="step-container">', unsafe_allow_html=True)
-    st.markdown('<div class="step-content">', unsafe_allow_html=True)
     st.markdown('<div style="text-align: center;"><h2 class="step-header">📂 Step 2: Upload Bitwave Actions Report</h2></div>', unsafe_allow_html=True)
     
     # Centered file uploader with proper label
@@ -373,7 +370,6 @@ def main():
             help="Upload the CSV export from your Bitwave actions report"
         )
     
-    st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     
     if uploaded_file is not None:
