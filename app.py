@@ -367,8 +367,8 @@ def main():
         
         tax_year = st.selectbox(
             "",
-            [2023, 2022, 2021, 2020, 2019, 2018],
-            index=1,
+            [2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018],
+            index=2,
             help="Select the tax year to extract transactions for",
             key="main_tax_year"
         )
