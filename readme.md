@@ -1,10 +1,10 @@
 # CSV to Form 8949 PDF Filler
 
-A specialized web application that converts CSV data with capital gains/losses into properly filled IRS Form 8949 PDFs. Perfect for tax preparation and filing.
+A specialized web application that converts CSV data from Bitwave's Actions Report with capital gains/losses into properly filled IRS Form 8949 PDFs. Perfect for tax preparation and filing.
 
 ## 🎯 What This Tool Does
 
-- 📊 Converts your capital gains/losses CSV data into official Form 8949 PDFs
+- 📊 Converts your capital gains/losses CSV data from Bitwave Actions Report into official Form 8949 PDFs
 - 📄 Generates properly formatted IRS forms that match the official layout
 - 💼 Handles both short-term and long-term capital gains/losses
 - 📦 Creates multiple pages automatically if you have many transactions
