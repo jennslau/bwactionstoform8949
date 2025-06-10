@@ -125,6 +125,31 @@ def main():
         justify-content: center;
     }
     
+    /* Fix file uploader text formatting */
+    .stFileUploader > div {
+        width: 100% !important;
+        text-align: center !important;
+    }
+    
+    .stFileUploader label {
+        font-size: 1rem !important;
+        line-height: 1.4 !important;
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        display: block !important;
+        text-align: center !important;
+    }
+    
+    .stFileUploader [data-testid="stFileUploadDropzone"] {
+        text-align: center !important;
+    }
+    
+    .stFileUploader [data-testid="stFileUploadDropzone"] > div {
+        writing-mode: horizontal-tb !important;
+        text-orientation: mixed !important;
+        direction: ltr !important;
+    }
+    
     /* Center metrics */
     [data-testid="metric-container"] {
         background: rgba(27, 156, 252, 0.05);
@@ -141,6 +166,32 @@ def main():
     
     .stRadio > div {
         text-align: center;
+    }
+    
+    /* Fix sidebar styling */
+    .css-1d391kg {
+        padding-top: 1rem;
+    }
+    
+    /* Sidebar text formatting */
+    .stSidebar .stSelectbox label {
+        font-size: 0.9rem !important;
+        line-height: 1.2 !important;
+        white-space: normal !important;
+        word-wrap: break-word !important;
+    }
+    
+    /* Fix sidebar header */
+    .stSidebar h2 {
+        font-size: 1.2rem !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    /* Fix sidebar subheader */
+    .stSidebar h3 {
+        font-size: 1rem !important;
+        margin-bottom: 0.5rem !important;
+        margin-top: 1rem !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -185,15 +236,15 @@ def main():
     form_type = st.sidebar.selectbox(
         "Form 8949 Type:",
         [
-            "Part I - Short-term (Box B) - Basis NOT reported to IRS", 
-            "Part I - Short-term (Box A) - Basis reported to IRS",
+            "Part I - Short-term (Box B) - Basis NOT reported", 
+            "Part I - Short-term (Box A) - Basis reported",
             "Part I - Short-term (Box C) - Various situations",
-            "Part II - Long-term (Box B) - Basis NOT reported to IRS",
-            "Part II - Long-term (Box A) - Basis reported to IRS",
+            "Part II - Long-term (Box B) - Basis NOT reported",
+            "Part II - Long-term (Box A) - Basis reported",
             "Part II - Long-term (Box C) - Various situations"
         ],
         index=0,
-        help="Most crypto transactions use 'Part I (Box B)' - short-term, basis not reported"
+        help="Most crypto transactions use 'Part I (Box B)'"
     )
     
     # Taxpayer information for PDF generation
@@ -230,13 +281,11 @@ def main():
     st.markdown('<h2 class="step-header">📂 Step 2: Upload Bitwave Actions Report</h2>', unsafe_allow_html=True)
     
     # Centered file uploader
-    col_left, col_center, col_right = st.columns([1, 2, 1])
-    with col_center:
-        uploaded_file = st.file_uploader(
-            "Choose your Bitwave actions CSV file",
-            type=["csv"],
-            help="Upload the CSV export from your Bitwave actions report"
-        )
+    uploaded_file = st.file_uploader(
+        "Choose your Bitwave actions CSV file",
+        type=["csv"],
+        help="Upload the CSV export from your Bitwave actions report"
+    )
     
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
