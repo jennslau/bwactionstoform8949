@@ -1,4 +1,30 @@
-import streamlit as st
+# Information section
+    col_info1, col_info2, col_info3 = st.columns([1, 2, 1])
+    with col_info2:
+        with st.expander("ℹ️ How This Works", expanded=False):
+            st.markdown("""
+            **This tool is specifically designed for Bitwave actions reports:**
+            
+            1. **Upload** your Bitwave actions CSV export
+            2. **Automatically extracts** sell transactions with proper lot matching
+            3. **Maps acquisition dates** using lot IDs from buy transactions
+            4. **Validates calculations** against Bitwave's short/long-term gain/loss columns
+            5. **Choose output:**
+               - **CSV file** → Upload to TurboTax, TaxAct, FreeTaxUSA, etc.
+               - **PDF file** → Official IRS Form 8949 ready for direct filing
+            
+            **Required Bitwave columns:**
+            - `action` (buy/sell)
+            - `asset` (BTC, ETH, etc.)
+            - `timestamp` (transaction date)
+            - `lotId` (for matching buy/sell pairs)
+            - `proceeds` (column R)
+            - `costBasisRelieved` (column W)
+            - `shortTermGainLoss` and `longTermGainLoss` (for validation)
+            """)
+    
+    
+    # Sidebar for configurationimport streamlit as st
 import pandas as pd
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
@@ -61,15 +87,16 @@ def main():
         background-clip: text;
     }
     
-    /* Center all step containers */
+    /* Center all step containers with max width */
     .step-container {
         display: flex;
         justify-content: center;
-        margin: 2rem 0;
+        margin: 3rem 0;
+        padding: 0 2rem;
     }
     
     .step-content {
-        max-width: 800px;
+        max-width: 700px;
         width: 100%;
         text-align: center;
     }
@@ -253,38 +280,20 @@ def main():
     
     # Header with Bitwave branding
     st.markdown("""
-    <div class="main-header">
-        <div class="bitwave-logo">BITWAVE</div>
-        <h1>Actions to Form 8949 Converter</h1>
+    <div style="display: flex; justify-content: center; margin: 2rem 0;">
+        <div style="max-width: 900px; width: 100%;">
+            <div class="main-header">
+                <div class="bitwave-logo">BITWAVE</div>
+                <h1>Actions to Form 8949 Converter</h1>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
+    # Centered content container
+    st.markdown('<div class="content-description">', unsafe_allow_html=True)
     st.markdown("Convert your Bitwave actions report into tax-ready formats with official IRS Form 8949 templates.")
-    
-    # Information section
-    with st.expander("ℹ️ How This Works", expanded=False):
-        st.markdown("""
-        **This tool is specifically designed for Bitwave actions reports:**
-        
-        1. **Upload** your Bitwave actions CSV export
-        2. **Automatically extracts** sell transactions with proper lot matching
-        3. **Maps acquisition dates** using lot IDs from buy transactions
-        4. **Validates calculations** against Bitwave's short/long-term gain/loss columns
-        5. **Choose output:**
-           - **CSV file** → Upload to TurboTax, TaxAct, FreeTaxUSA, etc.
-           - **PDF file** → Official IRS Form 8949 ready for direct filing
-        
-        **Required Bitwave columns:**
-        - `action` (buy/sell)
-        - `asset` (BTC, ETH, etc.)
-        - `timestamp` (transaction date)
-        - `lotId` (for matching buy/sell pairs)
-        - `proceeds` (column R)
-        - `costBasisRelieved` (column W)
-        - `shortTermGainLoss` and `longTermGainLoss` (for validation)
-        """)
-    
-    # Sidebar for configuration
+    st.markdown('</div>', unsafe_allow_html=True)
     st.sidebar.markdown("## Configuration")
     
     # Form type selection with clean formatting and inline help
