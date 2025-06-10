@@ -900,7 +900,7 @@ def get_official_form_8949(tax_year):
             response = requests.get(irs_urls[2024], timeout=10)
             if response.status_code == 200:
                 return response.content
-    except:
+    except Exception as e:
         pass
     
     return None
@@ -915,7 +915,7 @@ def create_form_8949_with_official_template(buffer, page_transactions, form_type
         try:
             # Use official form as base and overlay data
             return create_form_with_pdf_overlay(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions, official_form_pdf)
-        except:
+        except Exception as e:
             # Fallback to custom creation if overlay fails
             pass
     
