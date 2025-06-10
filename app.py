@@ -76,14 +76,31 @@ def main():
     
     /* Center step headers */
     .step-header {
-        text-align: center;
+        text-align: center !important;
         color: var(--bitwave-dark);
         font-size: 1.8rem;
         font-weight: bold;
         margin-bottom: 1rem;
         padding-bottom: 0.5rem;
         border-bottom: 3px solid var(--bitwave-green);
-        display: inline-block;
+        display: block !important;
+        width: 100% !important;
+    }
+    
+    /* Center all content within step containers */
+    .step-content {
+        max-width: 800px;
+        width: 100%;
+        text-align: center;
+    }
+    
+    .step-content .stSelectbox,
+    .step-content .stFileUploader,
+    .step-content .stRadio {
+        display: flex;
+        justify-content: center;
+        flex-direction: column;
+        align-items: center;
     }
     
     /* Style buttons with Bitwave colors */
@@ -181,6 +198,28 @@ def main():
         word-wrap: break-word !important;
     }
     
+    /* Sidebar columns for inline help */
+    .stSidebar .stColumns {
+        gap: 0 !important;
+    }
+    
+    .stSidebar .stColumns > div {
+        padding: 0 !important;
+    }
+    
+    /* Help icon styling */
+    .stSidebar span[title] {
+        cursor: help;
+        color: #666;
+        font-size: 0.9rem;
+        float: right;
+        margin-top: 2px;
+    }
+    
+    .stSidebar span[title]:hover {
+        color: var(--bitwave-blue);
+    }
+    
     /* Sidebar markdown formatting */
     .stSidebar .stMarkdown {
         margin-bottom: 0.5rem !important;
@@ -248,8 +287,13 @@ def main():
     # Sidebar for configuration
     st.sidebar.markdown("## Configuration")
     
-    # Form type selection with clean formatting
-    st.sidebar.markdown("**Form 8949 Type:**")
+    # Form type selection with clean formatting and inline help
+    col1, col2 = st.sidebar.columns([3, 1])
+    with col1:
+        st.markdown("**Form 8949 Type:**")
+    with col2:
+        st.markdown('<span title="Most crypto transactions use Part I (Box B)">❓</span>', unsafe_allow_html=True)
+    
     form_type = st.sidebar.selectbox(
         "",  # Empty label since we're using markdown above
         [
@@ -260,8 +304,7 @@ def main():
             "Part II - Long-term (Box A) - Basis reported",
             "Part II - Long-term (Box C) - Various situations"
         ],
-        index=0,
-        help="Most crypto transactions use 'Part I (Box B)'"
+        index=0
     )
     
     # Taxpayer information for PDF generation
@@ -275,11 +318,15 @@ def main():
     st.markdown('<div class="step-content">', unsafe_allow_html=True)
     st.markdown('<h2 class="step-header">🗓️ Step 1: Select Tax Year</h2>', unsafe_allow_html=True)
     
-    # Centered tax year selection
+    # Centered tax year selection with proper labels
     col_left, col_center, col_right = st.columns([1, 2, 1])
     with col_center:
+        st.markdown('<div style="text-align: center; margin-bottom: 0.5rem;">', unsafe_allow_html=True)
+        st.markdown("**Choose the tax year you're filing for:**")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
         tax_year = st.selectbox(
-            "Choose the tax year you're filing for:",
+            "",  # Empty label since we're using markdown above
             [2023, 2022, 2021, 2020, 2019, 2018],
             index=1,
             help="Select the tax year to extract transactions for",
@@ -298,12 +345,18 @@ def main():
     st.markdown('<div class="step-content">', unsafe_allow_html=True)
     st.markdown('<h2 class="step-header">📂 Step 2: Upload Bitwave Actions Report</h2>', unsafe_allow_html=True)
     
-    # Centered file uploader
-    uploaded_file = st.file_uploader(
-        "Choose your Bitwave actions CSV file",
-        type=["csv"],
-        help="Upload the CSV export from your Bitwave actions report"
-    )
+    # Centered file uploader with proper label
+    col_left, col_center, col_right = st.columns([1, 2, 1])
+    with col_center:
+        st.markdown('<div style="text-align: center; margin-bottom: 0.5rem;">', unsafe_allow_html=True)
+        st.markdown("**Choose your Bitwave actions CSV file**")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        uploaded_file = st.file_uploader(
+            "",  # Empty label since we're using markdown above
+            type=["csv"],
+            help="Upload the CSV export from your Bitwave actions report"
+        )
     
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -426,8 +479,12 @@ def main():
             # Centered output format selection
             col_left, col_center, col_right = st.columns([1, 2, 1])
             with col_center:
+                st.markdown('<div style="text-align: center; margin-bottom: 0.5rem;">', unsafe_allow_html=True)
+                st.markdown("**What do you want to generate?**")
+                st.markdown('</div>', unsafe_allow_html=True)
+                
                 output_format = st.radio(
-                    "What do you want to generate?",
+                    "",  # Empty label since we're using markdown above
                     [
                         "📊 CSV file for tax software (TurboTax, TaxAct, etc.)",
                         "📄 Complete Form 8949 PDF for IRS filing"
