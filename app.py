@@ -203,6 +203,11 @@ def main():
         color: var(--bitwave-dark) !important;
         font-size: 0.9rem !important;
         font-weight: 500 !important;
+        margin-bottom: 0 !important;
+    }
+    
+    .stSidebar .stMarkdown {
+        margin-bottom: 0.25rem !important;
     }
     
     /* Content descriptions */
@@ -289,13 +294,8 @@ def main():
     # Sidebar for configuration
     st.sidebar.markdown("## Configuration")
     
-    # Form type selection with clean formatting and inline help
-    col1, col2 = st.sidebar.columns([3, 1])
-    with col1:
-        st.markdown("**Form 8949 Type:**")
-    with col2:
-        st.markdown('<span title="Most crypto transactions use Part I (Box B)">❓</span>', unsafe_allow_html=True)
-    
+    # Form type selection with clean formatting
+    st.sidebar.markdown("**Form 8949 Type:**")
     form_type = st.sidebar.selectbox(
         "",
         [
