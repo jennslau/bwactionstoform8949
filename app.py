@@ -1,4 +1,4 @@
-try:
+
                         if "CSV" in output_format:
                             # Generate CSV for tax software
                             csv_data = generate_tax_software_csv(transactions, tax_year)
