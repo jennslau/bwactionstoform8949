@@ -1,4 +1,170 @@
-import streamlit as st
+try:
+                        if "CSV" in output_format:
+                            # Generate CSV for tax software
+                            csv_data = generate_tax_software_csv(transactions, tax_year)
+                            
+                            filename = f"form_8949_{tax_year}_bitwave_transactions.csv"
+                            st.download_button(
+                                label="📥 Download CSV for Tax Software",
+                                data=csv_data,
+                                file_name=filename,
+                                mime="text/csv",
+                                help="Upload this file to TurboTax, TaxAct, FreeTaxUSA, or other tax software"
+                            )
+                            
+                            st.success("✅ CSV file ready! This can be imported into most tax software.")
+                            
+                            # Show instructions
+                            with st.expander("📖 Tax Software Instructions"):
+                                st.markdown("""
+                                **For TurboTax:**
+                                1. Go to Federal Taxes → Wages & Income → Investment Income
+                                2. Select "Stocks, Mutual Funds, Bonds, Other"
+                                3. Choose "Import from CSV" or "Enter manually"
+                                4. Upload your downloaded CSV file
+                                
+                                **For TaxAct:**
+                                1. Go to Federal Return → Income → Investment Income
+                                2. Select "Capital Gains and Losses"
+                                3. Choose "Import transactions" 
+                                4. Upload your CSV file
+                                
+                                **For FreeTaxUSA:**
+                                1. Go to Income → Investment Income → Capital Gains/Losses
+                                2. Select "Import from file"
+                                3. Upload your CSV
+                                """)
+                        
+                        else:
+                            # Generate PDF Form 8949
+                            if not taxpayer_name or not taxpayer_ssn:
+                                st.error("⚠️ Please fill in your taxpayer information in the sidebar to generate a PDF.")
+                            else:
+                                # Split by term type if needed
+                                short_term_txns = [t for t in transactions if t['is_short_term']]
+                                long_term_txns = [t for t in transactions if not t['is_short_term']]
+                                
+                                pdf_files = []
+                                
+                                # Generate short-term PDF if applicable
+                                if short_term_txns:
+                                    short_form_type = form_type.replace("Part II", "Part I").replace("Long-term", "Short-term")
+                                    short_pdfs = generate_form_8949_pdf(
+                                        short_term_txns, 
+                                        short_form_type, 
+                                        taxpayer_name, 
+                                        taxpayer_ssn, 
+                                        tax_year,
+                                        "Short-term"
+                                    )
+                                    pdf_files.extend(short_pdfs)
+                                
+                                # Generate long-term PDF if applicable
+                                if long_term_txns:
+                                    long_form_type = form_type.replace("Part I", "Part II").replace("Short-term", "Long-term")
+                                    long_pdfs = generate_form_8949_pdf(
+                                        long_term_txns, 
+                                        long_form_type, 
+                                        taxpayer_name, 
+                                        taxpayer_ssn, 
+                                        tax_year,
+                                        "Long-term"
+                                    )
+                                    pdf_files.extend(long_pdfs)
+                                
+                                if len(pdf_files) == 1:
+                                    # Single PDF
+                                    st.download_button(
+                                        label="📥 Download Form 8949 PDF",
+                                        data=pdf_files[0]['content'],
+                                        file_name=pdf_files[0]['filename'],
+                                        mime="application/pdf",
+                                        help="Print this PDF and mail to the IRS with your tax return"
+                                    )
+                                else:
+                                    # Multiple PDFs in ZIP
+                                    zip_data = create_zip_file(pdf_files)
+                                    st.download_button(
+                                        label="📦 Download All Form 8949 PDFs (ZIP)",
+                                        data=zip_data,
+                                        file_name=f"form_8949_{tax_year}_complete.zip",
+                                        mime="application/zip"
+                                    )
+                                
+                                st.success(f"✅ Generated {len(pdf_files)} Form 8949 PDF(s)!")
+                                
+                                # Show PDF generation status
+                                with st.expander("📋 PDF Generation Details", expanded=False):
+                                    st.markdown(f"""
+                                    **Form Details:**
+                                    - **Tax Year:** {tax_year}
+                                    - **Form Type:** {form_type}
+                                    - **Template:** Official IRS Form 8949 ({tax_year})
+                                    - **Transactions:** {len(transactions)}
+                                    - **Pages Generated:** {len(pdf_files)}
+                                    
+                                    **Transaction Breakdown:**
+                                    - Short-term: {short_term_count}
+                                    - Long-term: {long_term_count}
+                                    
+                                    **Using official IRS Form 8949 template for {tax_year} as the base.**
+                                    """)
+                                
+                                # Show filing instructions
+                                with st.expander("📮 IRS Filing Instructions"):
+                                    st.markdown(f"""
+                                    **Your Form 8949 is ready for {tax_year} taxes:**
+                                    
+                                    1. **Print** the PDF(s) on white paper
+                                    2. **Sign** your tax return (Form 1040)
+                                    3. **Attach** Form 8949 to your return
+                                    4. **Mail** to the IRS address for your state
+                                    
+                                    **Important:**
+                                    - Keep copies for your records
+                                    - Form 8949 must be filed with Form 1040
+                                    - Include Schedule D if you have other capital gains/losses
+                                    
+                                    **Net result for {tax_year}:** ${total_gain_loss:,.2f} {"gain" if total_gain_loss >= 0 else "loss"}
+                                    """)
+                    
+                    except Exception as e:
+                        st.error(f"Error generating files: {str(e)}")
+        
+        else:
+            st.info("👆 Please upload your Bitwave actions file first.")
+            
+            # Show sample file format
+            with st.expander("📋 Bitwave Actions Report Format"):
+                st.markdown("""
+                **Your Bitwave actions CSV should contain these columns:**
+                
+                ```
+                action, asset, timestamp, lotId, proceeds, costBasisRelieved, 
+                shortTermGainLoss, longTermGainLoss, costBasisAcquired, ...
+                ```
+                
+                **Key fields used:**
+                - **action:** "buy" or "sell"
+                - **asset:** "BTC", "ETH", "ADA", etc.
+                - **timestamp:** Transaction date/time
+                - **lotId:** Unique identifier linking buy/sell transactions
+                - **proceeds:** Sales proceeds (column R)
+                - **costBasisRelieved:** Cost basis for this sale (column W)
+                - **shortTermGainLoss/longTermGainLoss:** For validation
+                
+                **To export from Bitwave:**
+                1. Go to your Actions report
+                2. Set date range for desired tax year
+                3. Export as CSV
+                4. Upload the CSV file here
+                
+                **Note:** This tool uses the official IRS Form 8949 template for the selected tax year, 
+                ensuring your forms meet current IRS formatting requirements.
+                """)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)import streamlit as st
 import pandas as pd
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
@@ -8,6 +174,10 @@ import io
 import zipfile
 from datetime import datetime
 import re
+import requests
+import PyPDF2
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 def main():
     st.set_page_config(
@@ -16,8 +186,140 @@ def main():
         layout="wide"
     )
     
-    st.title("₿ Bitwave Actions to Form 8949 Converter")
-    st.markdown("Upload your Bitwave actions report and get either a tax software CSV or completed Form 8949 PDF.")
+    # Custom CSS for Bitwave styling and centering
+    st.markdown("""
+    <style>
+    /* Bitwave color scheme */
+    :root {
+        --bitwave-blue: #1B9CFC;
+        --bitwave-green: #00D2B8;
+        --bitwave-dark: #2C3E50;
+    }
+    
+    /* Header styling */
+    .main-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem 0;
+        background: linear-gradient(135deg, var(--bitwave-blue) 0%, var(--bitwave-green) 100%);
+        color: white;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .main-header h1 {
+        color: white !important;
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin: 0;
+        text-align: center;
+    }
+    
+    .bitwave-logo {
+        font-size: 3rem;
+        font-weight: bold;
+        margin-right: 1rem;
+        background: linear-gradient(45deg, var(--bitwave-blue), var(--bitwave-green));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    /* Center all step containers */
+    .step-container {
+        display: flex;
+        justify-content: center;
+        margin: 2rem 0;
+    }
+    
+    .step-content {
+        max-width: 800px;
+        width: 100%;
+        text-align: center;
+    }
+    
+    /* Center step headers */
+    .step-header {
+        text-align: center;
+        color: var(--bitwave-dark);
+        font-size: 1.8rem;
+        font-weight: bold;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid var(--bitwave-green);
+        display: inline-block;
+    }
+    
+    /* Style buttons with Bitwave colors */
+    .stButton > button {
+        background: linear-gradient(135deg, var(--bitwave-blue) 0%, var(--bitwave-green) 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: bold;
+        transition: all 0.3s ease;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    /* Style info boxes */
+    .stInfo {
+        background: linear-gradient(135deg, rgba(27, 156, 252, 0.1) 0%, rgba(0, 210, 184, 0.1) 100%);
+        border-left: 4px solid var(--bitwave-green);
+    }
+    
+    /* Style success boxes */
+    .stSuccess {
+        background: rgba(0, 210, 184, 0.1);
+        border-left: 4px solid var(--bitwave-green);
+    }
+    
+    /* Center selectbox */
+    .stSelectbox {
+        display: flex;
+        justify-content: center;
+    }
+    
+    /* Center file uploader */
+    .stFileUploader {
+        display: flex;
+        justify-content: center;
+    }
+    
+    /* Center metrics */
+    [data-testid="metric-container"] {
+        background: rgba(27, 156, 252, 0.05);
+        border: 1px solid rgba(27, 156, 252, 0.2);
+        border-radius: 8px;
+        padding: 1rem;
+    }
+    
+    /* Center radio buttons */
+    .stRadio {
+        display: flex;
+        justify-content: center;
+    }
+    
+    .stRadio > div {
+        text-align: center;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Header with Bitwave branding
+    st.markdown("""
+    <div class="main-header">
+        <div class="bitwave-logo">BITWAVE</div>
+        <h1>Actions to Form 8949 Converter</h1>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("Convert your Bitwave actions report into tax-ready formats with official IRS Form 8949 templates.")
     
     # Information section
     with st.expander("ℹ️ How This Works", expanded=False):
@@ -30,7 +332,7 @@ def main():
         4. **Validates calculations** against Bitwave's short/long-term gain/loss columns
         5. **Choose output:**
            - **CSV file** → Upload to TurboTax, TaxAct, FreeTaxUSA, etc.
-           - **PDF file** → Print and mail directly to IRS
+           - **PDF file** → Official IRS Form 8949 ready for direct filing
         
         **Required Bitwave columns:**
         - `action` (buy/sell)
@@ -65,12 +367,14 @@ def main():
     taxpayer_name = st.sidebar.text_input("Full Name", placeholder="Jenny L")
     taxpayer_ssn = st.sidebar.text_input("Social Security Number", placeholder="XXX-XX-XXXX")
     
-    # Main content area
-    st.header("🗓️ Step 1: Select Tax Year")
+    # Step 1: Tax Year Selection (Centered)
+    st.markdown('<div class="step-container">', unsafe_allow_html=True)
+    st.markdown('<div class="step-content">', unsafe_allow_html=True)
+    st.markdown('<h2 class="step-header">🗓️ Step 1: Select Tax Year</h2>', unsafe_allow_html=True)
     
-    # Tax year selection in main area
-    col_year1, col_year2, col_year3 = st.columns([1, 2, 1])
-    with col_year2:
+    # Centered tax year selection
+    col_left, col_center, col_right = st.columns([1, 2, 1])
+    with col_center:
         tax_year = st.selectbox(
             "Choose the tax year you're filing for:",
             [2023, 2022, 2021, 2020, 2019, 2018],
@@ -81,20 +385,34 @@ def main():
         
         st.info(f"📅 Processing transactions for tax year **{tax_year}**")
     
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
     st.markdown("---")
     
-    col1, col2 = st.columns([1, 1])
+    # Step 2: Upload File (Centered)
+    st.markdown('<div class="step-container">', unsafe_allow_html=True)
+    st.markdown('<div class="step-content">', unsafe_allow_html=True)
+    st.markdown('<h2 class="step-header">📂 Step 2: Upload Bitwave Actions Report</h2>', unsafe_allow_html=True)
     
-    with col1:
-        st.header("Step 2: Upload Bitwave Actions Report")
-        
+    # Centered file uploader
+    col_left, col_center, col_right = st.columns([1, 2, 1])
+    with col_center:
         uploaded_file = st.file_uploader(
             "Choose your Bitwave actions CSV file",
             type=["csv"],
             help="Upload the CSV export from your Bitwave actions report"
         )
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+        
         
         if uploaded_file is not None:
+            # Centered processing section
+            st.markdown('<div class="step-container">', unsafe_allow_html=True)
+            st.markdown('<div class="step-content">', unsafe_allow_html=True)
+            
             try:
                 # Read the Bitwave actions file
                 df_raw = pd.read_csv(uploaded_file)
@@ -118,7 +436,7 @@ def main():
                         st.success(f"🎯 Extracted {len(transactions)} sell transactions for {tax_year}!")
                         
                         # Show extracted transactions summary
-                        st.subheader(f"{tax_year} Crypto Sales Summary")
+                        st.markdown(f'<h3 style="text-align: center; color: var(--bitwave-dark);">{tax_year} Crypto Sales Summary</h3>', unsafe_allow_html=True)
                         
                         # Create summary by asset
                         asset_summary = {}
@@ -150,7 +468,7 @@ def main():
                         summary_df = pd.DataFrame(summary_data)
                         st.dataframe(summary_df, use_container_width=True)
                         
-                        # Show overall totals
+                        # Show overall totals in centered metrics
                         total_proceeds = sum(t['proceeds'] for t in transactions)
                         total_basis = sum(t['cost_basis'] for t in transactions)
                         total_gain_loss = sum(t['gain_loss'] for t in transactions)
@@ -191,32 +509,41 @@ def main():
             except Exception as e:
                 st.error(f"Error reading Bitwave file: {str(e)}")
                 transactions = None
+                
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
         else:
             transactions = None
     
-    with col2:
-        st.header("Step 3: Choose Your Output")
+    # Step 3: Choose Output (Centered)
+    if uploaded_file is not None:
+        st.markdown("---")
+        st.markdown('<div class="step-container">', unsafe_allow_html=True)
+        st.markdown('<div class="step-content">', unsafe_allow_html=True)
+        st.markdown('<h2 class="step-header">🎯 Step 3: Choose Your Output</h2>', unsafe_allow_html=True)
         
         if transactions:
-            # Output format selection
-            output_format = st.radio(
-                "What do you want to generate?",
-                [
-                    "📊 CSV file for tax software (TurboTax, TaxAct, etc.)",
-                    "📄 Complete Form 8949 PDF for IRS filing"
-                ],
-                help="Choose based on how you plan to file your taxes"
-            )
-            
-            # Show term breakdown
-            short_term_count = sum(1 for t in transactions if t['is_short_term'])
-            long_term_count = len(transactions) - short_term_count
-            
-            if short_term_count > 0 and long_term_count > 0:
-                st.warning(f"⚠️ You have both short-term ({short_term_count}) and long-term ({long_term_count}) transactions. You may need separate Form 8949s for each.")
-            
-            # Generate button
-            if st.button("🚀 Generate Files", type="primary"):
+            # Centered output format selection
+            col_left, col_center, col_right = st.columns([1, 2, 1])
+            with col_center:
+                output_format = st.radio(
+                    "What do you want to generate?",
+                    [
+                        "📊 CSV file for tax software (TurboTax, TaxAct, etc.)",
+                        "📄 Complete Form 8949 PDF for IRS filing"
+                    ],
+                    help="Choose based on how you plan to file your taxes"
+                )
+                
+                # Show term breakdown
+                short_term_count = sum(1 for t in transactions if t['is_short_term'])
+                long_term_count = len(transactions) - short_term_count
+                
+                if short_term_count > 0 and long_term_count > 0:
+                    st.warning(f"⚠️ You have both short-term ({short_term_count}) and long-term ({long_term_count}) transactions. You may need separate Form 8949s for each.")
+                
+                # Centered generate button
+                if st.button("🚀 Generate Files", type="primary"):
                 try:
                     if "CSV" in output_format:
                         # Generate CSV for tax software
@@ -311,6 +638,23 @@ def main():
                                 )
                             
                             st.success(f"✅ Generated {len(pdf_files)} Form 8949 PDF(s)!")
+                            
+                            # Show PDF generation status
+                            with st.expander("📋 PDF Generation Details", expanded=False):
+                                st.markdown(f"""
+                                **Form Details:**
+                                - **Tax Year:** {tax_year}
+                                - **Form Type:** {form_type}
+                                - **Template:** Official IRS Form 8949 ({tax_year})
+                                - **Transactions:** {len(transactions)}
+                                - **Pages Generated:** {len(pdf_files)}
+                                
+                                **Transaction Breakdown:**
+                                - Short-term: {short_term_count}
+                                - Long-term: {long_term_count}
+                                
+                                **Using official IRS Form 8949 template for {tax_year} as the base.**
+                                """)
                             
                             # Show filing instructions
                             with st.expander("📮 IRS Filing Instructions"):
@@ -514,7 +858,7 @@ def generate_form_8949_pdf(transactions, form_type, taxpayer_name, taxpayer_ssn,
         
         # Create PDF for this page
         buffer = io.BytesIO()
-        create_form_8949_page(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_num + 1, total_pages, transactions)
+        create_form_8949_with_official_template(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_num + 1, total_pages, transactions)
         
         # Generate filename
         term_suffix = f"_{term_type}" if term_type else ""
@@ -530,7 +874,160 @@ def generate_form_8949_pdf(transactions, form_type, taxpayer_name, taxpayer_ssn,
     
     return pdf_files
 
-def create_form_8949_page(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions):
+def get_official_form_8949(tax_year):
+    """Fetch the official IRS Form 8949 for the specified tax year"""
+    
+    # IRS Form 8949 URLs by year
+    irs_urls = {
+        2024: "https://www.irs.gov/pub/irs-pdf/f8949.pdf",
+        2023: "https://www.irs.gov/pub/irs-prior/f8949--2023.pdf", 
+        2022: "https://www.irs.gov/pub/irs-prior/f8949--2022.pdf",
+        2021: "https://www.irs.gov/pub/irs-prior/f8949--2021.pdf",
+        2020: "https://www.irs.gov/pub/irs-prior/f8949--2020.pdf",
+        2019: "https://www.irs.gov/pub/irs-prior/f8949--2019.pdf",
+        2018: "https://www.irs.gov/pub/irs-prior/f8949--2018.pdf"
+    }
+    
+    # Try to fetch the official form
+    url = irs_urls.get(tax_year, irs_urls[2024])  # Default to latest if year not found
+    
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            return response.content
+        else:
+            # Fallback: try the current year form
+            response = requests.get(irs_urls[2024], timeout=10)
+            if response.status_code == 200:
+                return response.content
+    except:
+        pass
+    
+    return None
+
+def create_form_8949_with_official_template(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions):
+    """Create Form 8949 using official IRS template as base"""
+    
+    # Try to get official form
+    official_form_pdf = get_official_form_8949(tax_year)
+    
+    if official_form_pdf:
+        try:
+            # Use official form as base and overlay data
+            return create_form_with_pdf_overlay(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions, official_form_pdf)
+        except:
+            # Fallback to custom creation if overlay fails
+            pass
+    
+    # Fallback: create custom form (original method)
+    return create_form_8949_page_custom(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions)
+
+def create_form_with_pdf_overlay(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions, official_form_pdf):
+    """Overlay transaction data onto official IRS Form 8949 PDF"""
+    
+    # Read the official PDF
+    official_pdf_stream = io.BytesIO(official_form_pdf)
+    pdf_reader = PyPDF2.PdfReader(official_pdf_stream)
+    
+    # Determine which page to use (Part I or Part II)
+    template_page_num = 0 if "Part I" in form_type else 1
+    if template_page_num >= len(pdf_reader.pages):
+        template_page_num = 0  # Fallback to first page
+    
+    template_page = pdf_reader.pages[template_page_num]
+    
+    # Create overlay with transaction data
+    overlay_buffer = io.BytesIO()
+    c = canvas.Canvas(overlay_buffer, pagesize=letter)
+    width, height = letter
+    
+    # Set font
+    c.setFont("Helvetica", 9)
+    
+    # Add taxpayer information (positioned to match form fields)
+    c.drawString(60, height - 85, taxpayer_name)  # Name field
+    c.drawString(400, height - 85, taxpayer_ssn)  # SSN field
+    
+    # Add tax year
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(530, height - 50, str(tax_year))
+    
+    # Check appropriate box based on form_type
+    checkbox_y = height - 220  # Approximate position of checkboxes
+    c.setFont("Helvetica", 12)
+    
+    if "Box A" in form_type:
+        c.drawString(55, checkbox_y, "✓")
+    elif "Box B" in form_type:
+        c.drawString(55, checkbox_y - 15, "✓") 
+    elif "Box C" in form_type:
+        c.drawString(55, checkbox_y - 30, "✓")
+    elif "Box D" in form_type:
+        c.drawString(55, checkbox_y, "✓")
+    elif "Box E" in form_type:
+        c.drawString(55, checkbox_y - 15, "✓")
+    elif "Box F" in form_type:
+        c.drawString(55, checkbox_y - 30, "✓")
+    
+    # Add transaction data (positioned to match form fields)
+    c.setFont("Helvetica", 8)
+    start_y = height - 280  # Starting position for transaction rows
+    row_height = 20  # Height between rows
+    
+    for i, transaction in enumerate(page_transactions[:14]):  # Max 14 transactions per page
+        y_pos = start_y - (i * row_height)
+        
+        # Format dates
+        date_acquired = transaction['date_acquired'].strftime('%m/%d/%Y') if transaction['date_acquired'] else 'VARIOUS'
+        date_sold = transaction['date_sold'].strftime('%m/%d/%Y')
+        
+        # Position data in columns (adjusted to match official form layout)
+        c.drawString(60, y_pos, transaction['description'][:30])  # Column (a) - Description
+        c.drawString(175, y_pos, date_acquired)  # Column (b) - Date acquired  
+        c.drawString(240, y_pos, date_sold)  # Column (c) - Date sold
+        c.drawRightString(320, y_pos, f"{transaction['proceeds']:,.2f}")  # Column (d) - Proceeds
+        c.drawRightString(380, y_pos, f"{transaction['cost_basis']:,.2f}")  # Column (e) - Cost basis
+        # Column (f) - Code (leave blank)
+        # Column (g) - Adjustment (leave blank) 
+        c.drawRightString(520, y_pos, f"{transaction['gain_loss']:,.2f}")  # Column (h) - Gain/Loss
+    
+    # Add totals (only on last page)
+    if page_number == total_pages and len(page_transactions) > 0:
+        totals_y = start_y - (14 * row_height) - 10  # Position below transaction rows
+        
+        total_proceeds = sum(t['proceeds'] for t in all_transactions)
+        total_basis = sum(t['cost_basis'] for t in all_transactions)
+        total_gain_loss = sum(t['gain_loss'] for t in all_transactions)
+        
+        c.setFont("Helvetica-Bold", 8)
+        c.drawRightString(320, totals_y, f"{total_proceeds:,.2f}")
+        c.drawRightString(380, totals_y, f"{total_basis:,.2f}")
+        c.drawRightString(520, totals_y, f"{total_gain_loss:,.2f}")
+    
+    # Add page footer
+    c.setFont("Helvetica", 7)
+    if total_pages > 1:
+        c.drawString(50, 30, f"Page {page_number} of {total_pages}")
+    c.drawRightString(width - 50, 30, f"Generated: {datetime.now().strftime('%m/%d/%Y')}")
+    
+    c.save()
+    
+    # Merge overlay with template
+    overlay_buffer.seek(0)
+    overlay_reader = PyPDF2.PdfReader(overlay_buffer)
+    overlay_page = overlay_reader.pages[0]
+    
+    # Merge the pages
+    template_page.merge_page(overlay_page)
+    
+    # Write to output buffer
+    pdf_writer = PyPDF2.PdfWriter()
+    pdf_writer.add_page(template_page)
+    pdf_writer.write(buffer)
+    
+    return True
+
+def create_form_8949_page_custom(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions):
     """Create a single Form 8949 PDF page"""
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
