@@ -75,15 +75,13 @@ def main():
         padding: 0 1rem;
     }
     
+    /* Remove any remaining step-content styling that might create boxes */
     .step-content {
-        max-width: 600px;
-        width: 100%;
-        background: white;
-        border-radius: 16px;
-        border: 1px solid var(--bitwave-border);
-        padding: 2.5rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        text-align: center;
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
     }
     
     /* Step headers - Bitwave style */
@@ -401,7 +399,6 @@ def main():
     if uploaded_file is not None:
         # Centered processing section
         st.markdown('<div class="step-container">', unsafe_allow_html=True)
-        st.markdown('<div class="step-content">', unsafe_allow_html=True)
         
         try:
             # Read the Bitwave actions file
@@ -501,7 +498,6 @@ def main():
             transactions = None
             
         st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
     else:
         transactions = None
     
@@ -509,7 +505,6 @@ def main():
     if uploaded_file is not None:
         st.markdown("---")
         st.markdown('<div class="step-container">', unsafe_allow_html=True)
-        st.markdown('<div class="step-content">', unsafe_allow_html=True)
         st.markdown('<div style="text-align: center;"><h2 class="step-header">🎯 Step 3: Choose Your Output</h2></div>', unsafe_allow_html=True)
         
         if transactions:
@@ -618,7 +613,6 @@ def main():
         else:
             st.info("👆 Please upload your Bitwave actions file first.")
         
-        st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
 def extract_bitwave_transactions(df, target_year):
@@ -759,7 +753,7 @@ def generate_tax_software_csv(transactions, tax_year):
     return "\n".join(csv_lines)
 
 def generate_form_8949_pdf(transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, term_type=""):
-    """Generate completed Form 8949 PDF"""
+    """Generate completed Form 8949 PDF using official IRS template"""
     pdf_files = []
     
     # Split transactions into pages (14 per page max)
@@ -773,7 +767,11 @@ def generate_form_8949_pdf(transactions, form_type, taxpayer_name, taxpayer_ssn,
         
         # Create PDF for this page
         buffer = io.BytesIO()
-        create_form_8949_page_custom(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_num + 1, total_pages, transactions)
+        success = create_form_8949_with_official_template(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_num + 1, total_pages, transactions)
+        
+        if not success:
+            # Fallback to custom form if official template fails
+            create_form_8949_page_custom(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_num + 1, total_pages, transactions)
         
         # Generate filename
         term_suffix = f"_{term_type}" if term_type else ""
@@ -788,6 +786,159 @@ def generate_form_8949_pdf(transactions, form_type, taxpayer_name, taxpayer_ssn,
         })
     
     return pdf_files
+
+def get_official_form_8949(tax_year):
+    """Fetch the official IRS Form 8949 for the specified tax year"""
+    
+    # IRS Form 8949 URLs by year
+    irs_urls = {
+        2025: "https://www.irs.gov/pub/irs-pdf/f8949.pdf",
+        2024: "https://www.irs.gov/pub/irs-pdf/f8949.pdf",
+        2023: "https://www.irs.gov/pub/irs-prior/f8949--2023.pdf", 
+        2022: "https://www.irs.gov/pub/irs-prior/f8949--2022.pdf",
+        2021: "https://www.irs.gov/pub/irs-prior/f8949--2021.pdf",
+        2020: "https://www.irs.gov/pub/irs-prior/f8949--2020.pdf",
+        2019: "https://www.irs.gov/pub/irs-prior/f8949--2019.pdf",
+        2018: "https://www.irs.gov/pub/irs-prior/f8949--2018.pdf"
+    }
+    
+    # Try to fetch the official form
+    url = irs_urls.get(tax_year, irs_urls[2024])  # Default to latest if year not found
+    
+    try:
+        response = requests.get(url, timeout=15)
+        if response.status_code == 200:
+            return response.content
+        else:
+            # Fallback: try the current year form
+            response = requests.get(irs_urls[2024], timeout=15)
+            if response.status_code == 200:
+                return response.content
+    except Exception as e:
+        print(f"Error fetching official form: {e}")
+        pass
+    
+    return None
+
+def create_form_8949_with_official_template(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions):
+    """Create Form 8949 using official IRS template as base"""
+    
+    try:
+        # Get official form
+        official_form_pdf = get_official_form_8949(tax_year)
+        
+        if not official_form_pdf:
+            return False
+        
+        # Use official form as base and overlay data
+        return create_form_with_pdf_overlay(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions, official_form_pdf)
+        
+    except Exception as e:
+        print(f"Error creating form with official template: {e}")
+        return False
+
+def create_form_with_pdf_overlay(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions, official_form_pdf):
+    """Overlay transaction data onto official IRS Form 8949 PDF"""
+    
+    try:
+        # Read the official PDF
+        official_pdf_stream = io.BytesIO(official_form_pdf)
+        pdf_reader = PyPDF2.PdfReader(official_pdf_stream)
+        
+        # Determine which page to use (Part I or Part II)
+        template_page_num = 0 if "Part I" in form_type else 1
+        if template_page_num >= len(pdf_reader.pages):
+            template_page_num = 0  # Fallback to first page
+        
+        template_page = pdf_reader.pages[template_page_num]
+        
+        # Create overlay with transaction data
+        overlay_buffer = io.BytesIO()
+        c = canvas.Canvas(overlay_buffer, pagesize=letter)
+        width, height = letter
+        
+        # Set font
+        c.setFont("Helvetica", 10)
+        
+        # Add taxpayer information (positioned to match form fields)
+        # Name field - positioned based on official form layout
+        c.drawString(85, height - 85, taxpayer_name)
+        
+        # SSN field - positioned based on official form layout  
+        c.drawString(400, height - 85, taxpayer_ssn)
+        
+        # Check appropriate box based on form_type
+        checkbox_y = height - 200  # Approximate position of checkboxes
+        c.setFont("Helvetica", 14)
+        
+        if "Box A" in form_type:
+            c.drawString(45, checkbox_y, "✓")
+        elif "Box B" in form_type:
+            c.drawString(45, checkbox_y - 20, "✓") 
+        elif "Box C" in form_type:
+            c.drawString(45, checkbox_y - 40, "✓")
+        elif "Box D" in form_type:
+            c.drawString(45, checkbox_y, "✓")
+        elif "Box E" in form_type:
+            c.drawString(45, checkbox_y - 20, "✓")
+        elif "Box F" in form_type:
+            c.drawString(45, checkbox_y - 40, "✓")
+        
+        # Add transaction data (positioned to match form fields)
+        c.setFont("Helvetica", 9)
+        start_y = height - 290  # Starting position for transaction rows based on official form
+        row_height = 18  # Height between rows on official form
+        
+        for i, transaction in enumerate(page_transactions[:14]):  # Max 14 transactions per page
+            y_pos = start_y - (i * row_height)
+            
+            # Format dates
+            date_acquired = transaction['date_acquired'].strftime('%m/%d/%Y') if transaction['date_acquired'] else 'VARIOUS'
+            date_sold = transaction['date_sold'].strftime('%m/%d/%Y')
+            
+            # Position data in columns (adjusted to match official form layout)
+            c.drawString(50, y_pos, transaction['description'][:35])  # Column (a) - Description
+            c.drawString(170, y_pos, date_acquired)  # Column (b) - Date acquired  
+            c.drawString(230, y_pos, date_sold)  # Column (c) - Date sold
+            c.drawRightString(320, y_pos, f"{transaction['proceeds']:,.2f}")  # Column (d) - Proceeds
+            c.drawRightString(380, y_pos, f"{transaction['cost_basis']:,.2f}")  # Column (e) - Cost basis
+            # Column (f) - Code (leave blank)
+            # Column (g) - Adjustment (leave blank) 
+            c.drawRightString(520, y_pos, f"{transaction['gain_loss']:,.2f}")  # Column (h) - Gain/Loss
+        
+        # Add totals (only on last page) - positioned to match official form totals section
+        if page_number == total_pages and len(page_transactions) > 0:
+            totals_y = start_y - (14 * row_height) - 20  # Position below transaction rows
+            
+            total_proceeds = sum(t['proceeds'] for t in all_transactions)
+            total_basis = sum(t['cost_basis'] for t in all_transactions)
+            total_gain_loss = sum(t['gain_loss'] for t in all_transactions)
+            
+            c.setFont("Helvetica-Bold", 9)
+            c.drawRightString(320, totals_y, f"{total_proceeds:,.2f}")
+            c.drawRightString(380, totals_y, f"{total_basis:,.2f}")
+            c.drawRightString(520, totals_y, f"{total_gain_loss:,.2f}")
+        
+        c.save()
+        
+        # Merge overlay with template
+        overlay_buffer.seek(0)
+        overlay_reader = PyPDF2.PdfReader(overlay_buffer)
+        overlay_page = overlay_reader.pages[0]
+        
+        # Merge the pages
+        template_page.merge_page(overlay_page)
+        
+        # Write to output buffer
+        pdf_writer = PyPDF2.PdfWriter()
+        pdf_writer.add_page(template_page)
+        pdf_writer.write(buffer)
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error in PDF overlay: {e}")
+        return False
 
 def create_form_8949_page_custom(buffer, page_transactions, form_type, taxpayer_name, taxpayer_ssn, tax_year, page_number, total_pages, all_transactions):
     """Create a custom Form 8949 PDF page"""
